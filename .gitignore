@@ -1,0 +1,61 @@
+# API keys & secrets
+.env
+*.key
+.envrc
+
+# Persistent runtime data
+data/
+*.json.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Project artifacts
+SmartStudyAgent*.zip
+*.cast
+*.pptx
+pptx_imgs/
+pptx_extracted/
+new_slides/
+build_pptx.py
+generate_slides.py
+generate_pdf.py
+TECHNICAL_DESIGN.pdf
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs
+*.log
