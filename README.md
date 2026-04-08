@@ -6,6 +6,13 @@
 [![Claude API](https://img.shields.io/badge/Claude-opus--4--6-purple.svg)](https://www.anthropic.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red.svg)](https://streamlit.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Hugging Face Space](https://img.shields.io/badge/🤗_Live_Demo-Hugging_Face-yellow.svg)](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
+
+## 🌐 Live Demo
+
+**Try it now:** [huggingface.co/spaces/HumphreySun98/smart-study-agent](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
+
+The live demo runs on Hugging Face Spaces using free HF Inference Providers (Kimi-K2). For local use, you can plug in your own Anthropic key to get Claude's higher-quality reasoning.
 
 SmartStudy Agent is a goal-based, partially observable AI agent that turns any lecture material into a fully personalized learning experience. Unlike a chatbot, it maintains a persistent belief state about student knowledge and uses an adaptive policy to decide what to study next.
 
@@ -103,23 +110,40 @@ The agent is modeled as a **POMDP** (partially observable Markov decision proces
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/smartstudy-agent.git
-cd smartstudy-agent
+git clone https://github.com/HumphreySun98/Smart-Study-Agent.git
+cd Smart-Study-Agent
 pip install -r requirements.txt
 ```
 
-Set your Claude API key:
+The agent supports three LLM backends and picks one automatically:
+
+| Backend | Env variable | Cost | Quality |
+|---------|--------------|------|---------|
+| **Anthropic Claude** | `ANTHROPIC_API_KEY` | Pay as you go | ⭐⭐⭐⭐⭐ Best — supports adaptive thinking |
+| **HF Inference (Kimi-K2)** | `HF_TOKEN` | **Free** | ⭐⭐⭐⭐ Great |
+| **Mock** | _(no env vars)_ | Free | ⭐⭐ Canned responses for offline demos |
+
 ```bash
+# Option 1 — Claude (premium quality)
 export ANTHROPIC_API_KEY=sk-ant-...
+
+# Option 2 — Hugging Face (completely free)
+export HF_TOKEN=hf_...
+
+# Option 3 — Mock mode (no setup)
+# just run the agent without any keys
 ```
 
-Get a key from [console.anthropic.com](https://console.anthropic.com). New accounts receive $5 in free credit.
+Get a Claude key from [console.anthropic.com](https://console.anthropic.com) ($5 free credit) or a free HF token from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 ---
 
 ## Quick Start
 
-### Web App
+### Hosted Demo (zero install)
+👉 **[https://huggingface.co/spaces/HumphreySun98/smart-study-agent](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)**
+
+### Web App (local)
 ```bash
 streamlit run app.py
 ```
@@ -223,6 +247,7 @@ print(f"Adaptive beats baseline by {results['improvement_pct']:.1f}%")
 smartstudy-agent/
 ├── smartstudy_agent.py     # Core agent — 5 OPEAA phases
 ├── mock_claude.py          # Offline mock client
+├── hf_client.py            # Hugging Face Inference adapter (free LLM backend)
 ├── app.py                  # Streamlit web app (8 pages)
 ├── demo.py                 # Interactive terminal demo
 ├── demo_auto.py            # Automated demo (no input needed)

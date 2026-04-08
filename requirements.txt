@@ -1,4 +1,6 @@
 anthropic>=0.40.0
+openai>=1.0.0
+huggingface_hub>=0.20.0
 pypdf>=4.0.0
 rich>=13.0.0
 streamlit>=1.30.0

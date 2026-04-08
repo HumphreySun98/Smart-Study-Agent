@@ -66,14 +66,23 @@ class SmartStudyAgent:
     """
 
     def __init__(self, api_key: Optional[str] = None, mock: bool = False):
+        # backend selection: mock > anthropic > hf > mock fallback
         if mock:
             self.client = MockAnthropic()
             self.model = "mock"
-        else:
+        elif api_key or os.environ.get("ANTHROPIC_API_KEY"):
             self.client = anthropic.Anthropic(
                 api_key=api_key or os.environ.get("ANTHROPIC_API_KEY")
             )
             self.model = "claude-opus-4-6"
+        elif os.environ.get("HF_TOKEN"):
+            # free HF Inference fallback (e.g. on Hugging Face Spaces)
+            from hf_client import HFAnthropicAdapter
+            self.client = HFAnthropicAdapter()
+            self.model = "moonshotai/Kimi-K2-Instruct-0905"
+        else:
+            self.client = MockAnthropic()
+            self.model = "mock"
         self.profile = StudentProfile()
 
     # --- Phase 1: OBSERVE ---
