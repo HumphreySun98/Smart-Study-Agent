@@ -238,6 +238,7 @@ print(f"Adaptive beats baseline by {results['improvement_pct']:.1f}%")
 | 👥 **Peer Comparison** | Multi-student leaderboard ranked by average score |
 | 🎯 **RL Policy** | Inspect the Q-table and train it on simulated episodes |
 | 🧪 **Baseline Evaluation** | Adaptive vs random topic-selection simulation results |
+| 📋 **Pilot Study** | Real usage metrics, engagement analysis, learning progression report |
 
 ---
 
@@ -252,8 +253,9 @@ smartstudy-agent/
 ├── demo.py                 # Interactive terminal demo
 ├── demo_auto.py            # Automated demo (no input needed)
 │
-├── storage.py              # JSON persistent storage
-├── concept_graph.py        # Topic prerequisite DAG (Kahn's topo sort)
+├── storage.py              # SQLite persistent storage (auto-migrates from JSON)
+├── concept_graph.py        # Topic prerequisite DAG with cross-course linking
+├── pilot_study.py          # Pilot study data collection and analysis
 ├── rl_policy.py            # Tabular Q-learning policy
 ├── spaced_repetition.py    # SM-2 review scheduler
 ├── multi_format.py         # PDF/TXT/MD/DOCX/PPTX/VTT/SRT loader
@@ -264,8 +266,9 @@ smartstudy-agent/
 ├── README.md               # This file
 │
 ├── data/                   # Created at runtime
-│   ├── students.json       # Persistent student profiles
-│   └── qtable.json         # Q-learning policy state
+│   ├── smartstudy.db       # SQLite database (student profiles + sessions)
+│   ├── qtable.json         # Q-learning policy state
+│   └── concept_graph.json  # User-defined graph edges
 │
 └── visuals/                # Generated PNG diagrams
     ├── adaptive_loop.png
@@ -285,7 +288,7 @@ smartstudy-agent/
 | RL | Tabular Q-learning over discretized score buckets |
 | Knowledge Graph | NetworkX + Kahn's algorithm |
 | Spaced Repetition | SM-2 algorithm |
-| Storage | JSON (zero-config, no DB required) |
+| Storage | SQLite (auto-migrates from JSON, scales to >1k students) |
 | Document Parsing | pypdf, python-docx, python-pptx |
 | Terminal UI | rich |
 
@@ -326,11 +329,11 @@ where the reward `r` is proportional to the score change between attempts. The l
 - [x] Streamlit web app with 8 pages
 - [x] Multi-format input loader
 - [x] Quantitative baseline evaluation
-- [ ] Concept graph editor in the UI
-- [ ] Cross-course prerequisite linking
-- [ ] Real classroom pilot study
-- [ ] Replace JSON storage with SQLite for >1k students
-- [ ] Deploy as a hosted SaaS
+- [x] Concept graph editor in the UI
+- [x] Cross-course prerequisite linking (4 courses: AI, Data Science, NLP, Computer Vision)
+- [x] Pilot study dashboard with engagement analysis and progression tracking
+- [x] SQLite storage backend (replaces JSON, handles >1k students)
+- [x] Deployed as hosted SaaS on [Hugging Face Spaces](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
 
 ---
 

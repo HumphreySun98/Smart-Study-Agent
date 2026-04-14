@@ -134,6 +134,7 @@ with st.sidebar:
         "👥 Peer Comparison",
         "🎯 RL Policy",
         "🧪 Baseline Evaluation",
+        "📋 Pilot Study",
     ])
 
 
@@ -376,37 +377,98 @@ elif page == "🔁 Spaced Review":
 
 elif page == "🧠 Concept Graph":
     st.title("🧠 Concept Dependency Graph")
-    st.caption("Prerequisites between AI/ML topics")
 
-    graph = ConceptGraph()
+    # course selector for cross-course linking
+    available = ConceptGraph.available_courses()
+    selected_courses = st.multiselect(
+        "Include courses (cross-course prerequisites):",
+        available,
+        default=[available[0]] if available else []
+    )
+    graph = ConceptGraph(courses=selected_courses)
     record = storage.load_student(st.session_state.current_student)
     mastered = set(record["topics_mastered"])
 
-    # render with matplotlib
+    # visualization
     try:
         import networkx as nx
         G = nx.DiGraph()
         for prereq, topic in graph.to_edges():
             G.add_edge(prereq, topic)
+        # add isolated nodes too
+        for t in graph.prereqs:
+            if t not in G:
+                G.add_node(t)
 
-        fig, ax = plt.subplots(figsize=(12, 8))
-        pos = nx.spring_layout(G, k=2, seed=42)
+        fig, ax = plt.subplots(figsize=(14, 9))
+        pos = nx.spring_layout(G, k=2.5, seed=42, iterations=50)
         node_colors = ["#16A34A" if n in mastered else "#94A3B8" for n in G.nodes()]
         nx.draw(G, pos, with_labels=True, node_color=node_colors,
-                node_size=2200, font_size=8, font_weight="bold",
+                node_size=2200, font_size=7, font_weight="bold",
                 edge_color="#64748B", arrows=True, arrowsize=15, ax=ax)
+        ax.legend(handles=[
+            plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#16A34A", markersize=12, label="Mastered"),
+            plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#94A3B8", markersize=12, label="Not mastered"),
+        ], loc="upper left")
         st.pyplot(fig)
     except ImportError:
-        st.warning("Install `networkx` for graph visualization. Showing as table:")
+        st.warning("Install `networkx` for graph visualization.")
         edges_df = pd.DataFrame(graph.to_edges(), columns=["Prerequisite", "Topic"])
         st.dataframe(edges_df, use_container_width=True, hide_index=True)
 
+    # missing prereqs
     st.divider()
-    st.subheader("Your missing prerequisites")
-    for topic in graph.prereqs:
+    st.subheader("Missing Prerequisites")
+    has_missing = False
+    for topic in sorted(graph.prereqs):
         missing = graph.missing_prereqs(topic, list(mastered))
         if missing and topic not in mastered:
             st.markdown(f"**{topic}** needs: {', '.join(missing)}")
+            has_missing = True
+    if not has_missing:
+        st.success("No missing prerequisites!")
+
+    # ---- Graph Editor ----
+    st.divider()
+    st.subheader("Edit Concept Graph")
+
+    col_add, col_remove = st.columns(2)
+
+    with col_add:
+        st.markdown("**Add a new topic or edge**")
+        new_topic = st.text_input("Topic name", key="new_topic")
+        new_prereq = st.text_input("Prerequisite (optional)", key="new_prereq")
+        if st.button("Add", use_container_width=True):
+            if new_topic.strip():
+                if new_prereq.strip():
+                    graph.add_edge(new_prereq.strip(), new_topic.strip())
+                    st.success(f"Added: {new_prereq.strip()} → {new_topic.strip()}")
+                else:
+                    graph.add_topic(new_topic.strip())
+                    st.success(f"Added topic: {new_topic.strip()}")
+                st.rerun()
+
+    with col_remove:
+        st.markdown("**Remove an edge**")
+        edges = graph.to_edges()
+        if edges:
+            edge_strs = [f"{p} → {t}" for p, t in edges]
+            to_remove = st.selectbox("Select edge to remove", edge_strs)
+            if st.button("Remove", use_container_width=True) and to_remove:
+                parts = to_remove.split(" → ")
+                graph.remove_edge(parts[0], parts[1])
+                st.success(f"Removed: {to_remove}")
+                st.rerun()
+        else:
+            st.caption("No edges to remove.")
+
+    # show all edges as table
+    with st.expander("All edges"):
+        if graph.to_edges():
+            st.dataframe(
+                pd.DataFrame(graph.to_edges(), columns=["Prerequisite", "Topic"]),
+                use_container_width=True, hide_index=True
+            )
 
 
 # ============================================================
@@ -545,3 +607,80 @@ elif page == "🧪 Baseline Evaluation":
         ax.legend()
         ax.grid(alpha=0.3)
         st.pyplot(fig)
+
+
+# ============================================================
+# PAGE: Pilot Study
+# ============================================================
+
+elif page == "📋 Pilot Study":
+    st.title("📋 Pilot Study Dashboard")
+    st.caption("Real usage data from students using the SmartStudy Agent")
+
+    from pilot_study import collect_metrics, engagement_analysis, mastery_progression, generate_report
+
+    metrics = collect_metrics()
+
+    if metrics["n_students"] == 0:
+        st.info("No student data yet. Have students complete study sessions to populate this dashboard.")
+        st.stop()
+
+    # key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Students", metrics["n_students"])
+    col2.metric("Total Sessions", metrics["total_sessions"])
+    col3.metric("Avg Score", f"{metrics['avg_score_mean']:.0%}")
+    col4.metric("Avg Topics Mastered", f"{metrics['avg_topics_mastered']:.1f}")
+
+    st.divider()
+
+    # engagement
+    st.subheader("Engagement Analysis")
+    engagement = engagement_analysis()
+    ecol1, ecol2, ecol3 = st.columns(3)
+    ecol1.metric("Active (2+ sessions)", engagement.get("active_students", 0))
+    ecol2.metric("One-time users", engagement.get("one_time_students", 0))
+    ecol3.metric("Retention Rate", f"{engagement.get('retention_rate', 0):.0%}")
+
+    st.divider()
+
+    # learning progression
+    st.subheader("Learning Progression")
+    progression = mastery_progression()
+    if progression:
+        prog_df = pd.DataFrame(progression)
+        prog_df["improvement"] = prog_df["improvement"].apply(lambda x: f"{x:+.0%}")
+
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        students = [p["student"] for p in progression]
+        first = [p["first_half_avg"] * 100 for p in progression]
+        second = [p["second_half_avg"] * 100 for p in progression]
+        x = range(len(students))
+        w = 0.35
+        ax2.bar([i - w/2 for i in x], first, w, label="First half", color="#94A3B8")
+        ax2.bar([i + w/2 for i in x], second, w, label="Second half", color="#2563EB")
+        ax2.set_xticks(list(x))
+        ax2.set_xticklabels(students, rotation=30, ha="right")
+        ax2.set_ylabel("Avg Score (%)")
+        ax2.axhline(70, color="gray", linestyle="--", alpha=0.5)
+        ax2.legend()
+        ax2.grid(axis="y", alpha=0.3)
+        st.pyplot(fig2)
+
+        st.dataframe(prog_df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Students need 2+ quizzes for progression analysis.")
+
+    st.divider()
+
+    # full report
+    st.subheader("Full Report")
+    report = generate_report()
+    st.code(report, language="text")
+
+    st.download_button(
+        "Download Report (.txt)",
+        data=report,
+        file_name="pilot_study_report.txt",
+        mime="text/plain",
+    )
