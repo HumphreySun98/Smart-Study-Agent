@@ -259,23 +259,40 @@ class SmartStudyAgent:
         }
 
     # --- Phase 5: ADAPT ---
-    # updates the student profile and decides what to do next
+    # updates the student profile, uses RL policy for action, then gets LLM recommendation
 
     def adapt(self, topic: str, evaluation: dict) -> dict:
+        # get the previous score for this topic (for RL update)
+        prev_score = 0.0
+        for h in reversed(self.profile.quiz_history):
+            if h.get("topic") == topic:
+                prev_score = h.get("score", 0.0)
+                break
+
         self.profile.record_quiz(
             topic=topic,
             score=evaluation["score"],
             missed=evaluation["missed_concepts"],
         )
 
+        # --- RL policy decides the action ---
+        from rl_policy import QLearningPolicy
+        policy = QLearningPolicy()
+        rl_action = policy.choose_action(evaluation["score"])
+
+        # train Q-table with real quiz data
+        policy.update(prev_score, rl_action, evaluation["score"])
+
+        # --- LLM generates the recommendation text (but action comes from RL) ---
         response = self.client.messages.create(
             model=self.model,
             max_tokens=512,
             thinking={"type": "adaptive"},
             system=(
                 "You are an adaptive learning advisor. "
-                "Based on quiz results and the student's learning history, "
-                "decide the best next action. Return only valid JSON."
+                "The RL policy has already decided the action. "
+                "Your job is to explain the decision to the student. "
+                "Return only valid JSON."
             ),
             messages=[
                 {
@@ -284,11 +301,13 @@ class SmartStudyAgent:
                         f"Quiz topic: {topic}\n"
                         f"Score: {evaluation['score']:.0%}\n"
                         f"Missed concepts: {evaluation['missed_concepts']}\n"
+                        f"RL policy decision: {rl_action}\n"
                         f"Updated profile:\n{self.profile.summary()}\n\n"
+                        f"The RL policy chose '{rl_action}'. Explain this to the student.\n"
                         "Return JSON with:\n"
-                        '  "action": "review"|"advance"|"reinforce",\n'
+                        f'  "action": "{rl_action}",\n'
                         '  "next_topic": "suggested next topic or null",\n'
-                        '  "recommendation": "brief explanation"\n'
+                        '  "recommendation": "brief explanation of why this action makes sense"\n'
                     ),
                 }
             ],
@@ -296,7 +315,11 @@ class SmartStudyAgent:
 
         text = next(b.text for b in response.content if b.type == "text")
         clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        return json.loads(clean)
+        result = json.loads(clean)
+        # ensure the RL action is used (not overridden by LLM)
+        result["action"] = rl_action
+        result["rl_policy_used"] = True
+        return result
 
     # --- helper: run all phases in sequence ---
 
