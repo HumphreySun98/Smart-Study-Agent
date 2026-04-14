@@ -296,25 +296,42 @@ smartstudy-agent/
 
 ## How the Agent Decides
 
-### Heuristic Policy (default)
+The ADAPT phase uses a **two-layer decision system**: the RL policy chooses the action, and the LLM explains the decision to the student in natural language.
 
-| Quiz Score | Action | Rationale |
-|------------|--------|-----------|
-| ≥ 70% | `advance` | Bloom's mastery threshold met — move on |
-| 50–69% | `reinforce` | Concept partially understood — practice more |
-| < 50% | `review` | Foundation missing — re-read source material |
+### Q-Learning Policy (decides the action)
 
-The 70% threshold is grounded in Bloom's 1968 research on mastery learning, which showed that students need ~70-80% mastery before new material consolidates effectively.
+The action (`advance` / `reinforce` / `review`) is chosen by a tabular Q-learning agent — **not** by the LLM. This runs every time a student finishes a quiz.
 
-### Q-Learning Policy (alternative)
+| Component | Value |
+|-----------|-------|
+| **State** | Quiz score discretized into 5 buckets: `very_low` / `low` / `medium` / `high` / `very_high` |
+| **Actions** | `review` · `reinforce` · `advance` |
+| **Reward** | Score change between attempts: `r = (new_score − prev_score) × 10` |
+| **Learning rate (α)** | 0.2 |
+| **Discount factor (γ)** | 0.8 |
+| **Exploration (ε)** | 0.15 (epsilon-greedy) |
 
-State space is discretized into 5 mastery buckets (`very_low`, `low`, `medium`, `high`, `very_high`). The Q-table is updated via standard tabular Q-learning:
-
+Update rule:
 ```
 Q(s, a) ← Q(s, a) + α · [r + γ · max(Q(s', a')) − Q(s, a)]
 ```
 
-where the reward `r` is proportional to the score change between attempts. The learned policy can be inspected and trained interactively in the **🎯 RL Policy** page of the web app.
+The Q-table is **persisted to disk** (`data/qtable.json`) and trains on every real quiz attempt. It can also be inspected and manually trained in the **🎯 RL Policy** page.
+
+### LLM Layer (explains the decision)
+
+After the RL policy picks the action, Claude (or Kimi-K2) generates a natural-language explanation of *why* that action makes sense for the student. The LLM cannot override the RL decision — it only produces the recommendation text.
+
+```
+Student takes quiz → score = 55%
+    → RL policy: Q("medium", "reinforce") = 0.42 (highest)  →  action = "reinforce"
+    → Q-table updated with reward = (0.55 - 0.40) × 10 = 1.5
+    → LLM generates: "You're close! Practice the same topic one more time..."
+```
+
+### Heuristic Fallback
+
+The Q-table is initialized with values informed by Bloom's 1968 mastery learning threshold (70%). As real data accumulates, the learned policy diverges from the heuristic and adapts to actual student behavior patterns.
 
 ---
 
