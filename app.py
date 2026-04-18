@@ -47,7 +47,12 @@ def init_state():
         "evaluation": None,
         "adaptation": None,
         "lecture_text": "",
-        "use_mock": not os.environ.get("ANTHROPIC_API_KEY"),
+        "use_mock": not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("HF_TOKEN")),
+        "backend_label": (
+            "Claude API" if os.environ.get("ANTHROPIC_API_KEY")
+            else "HF Inference (Kimi-K2)" if os.environ.get("HF_TOKEN")
+            else "Mock"
+        ),
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -120,7 +125,7 @@ with st.sidebar:
     if st.session_state.use_mock:
         st.warning("Mock mode (no API key)")
     else:
-        st.success("Real Claude API")
+        st.success(f"Live: {st.session_state.backend_label}")
 
     st.divider()
 
