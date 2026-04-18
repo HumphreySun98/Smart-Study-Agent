@@ -10,6 +10,48 @@ from typing import Optional
 import anthropic
 from mock_claude import MockAnthropic
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+
+def _extract_json(text: str):
+    """
+    Robustly extract JSON from an LLM response. Handles:
+      - plain JSON
+      - ```json ... ``` fenced blocks
+      - leading/trailing prose around a JSON object/array
+      - empty or whitespace-only responses (raises a clear error)
+    """
+    import re
+    if not text or not text.strip():
+        raise ValueError("LLM returned an empty response (possibly rate-limited or content-filtered).")
+
+    s = text.strip()
+    # strip markdown fences if present
+    s = re.sub(r"^```(?:json)?\s*", "", s)
+    s = re.sub(r"\s*```\s*$", "", s)
+    s = s.strip()
+
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        pass
+
+    # fall back: find the first {...} or [...] block
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = s.find(opener)
+        end = s.rfind(closer)
+        if start != -1 and end > start:
+            candidate = s[start:end + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError(f"Could not parse JSON from LLM response. First 200 chars: {s[:200]!r}")
+
 
 # ---- data classes to hold student info, plans, and quiz questions ----
 
@@ -124,9 +166,7 @@ class SmartStudyAgent:
         )
 
         text = next(b.text for b in response.content if b.type == "text")
-        # claude sometimes wraps json in ```json ... ``` so we strip that
-        clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        return json.loads(clean)
+        return _extract_json(text)
 
     # --- Phase 2: PLAN ---
     # builds a study plan based on what the student already knows
@@ -161,8 +201,7 @@ class SmartStudyAgent:
         )
 
         text = next(b.text for b in response.content if b.type == "text")
-        clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        data = json.loads(clean)
+        data = _extract_json(text)
 
         return StudyPlan(
             topics=observed["topics"],
@@ -201,8 +240,7 @@ class SmartStudyAgent:
         )
 
         text = next(b.text for b in response.content if b.type == "text")
-        clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        raw = json.loads(clean)
+        raw = _extract_json(text)
 
         return [
             QuizQuestion(
@@ -345,8 +383,15 @@ class SmartStudyAgent:
         )
 
         text = next(b.text for b in response.content if b.type == "text")
-        clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(clean)
+        try:
+            result = _extract_json(text)
+        except ValueError:
+            # Adapt phase is non-critical — if LLM output is bad, fall back to a default
+            result = {
+                "action": rl_action,
+                "next_topic": None,
+                "recommendation": f"Policy chose '{rl_action}' based on score {evaluation['score']:.0%}.",
+            }
         # ensure the policy's action is used (not overridden by LLM)
         result["action"] = rl_action
         result["policy"] = policy_label

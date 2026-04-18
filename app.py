@@ -12,6 +12,12 @@ import os
 import tempfile
 from datetime import datetime
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt

@@ -43,6 +43,7 @@ ENV/
 .DS_Store
 .claude/
 memory/
+deploy_hf.sh
 
 # Project artifacts
 SmartStudyAgent*.zip
