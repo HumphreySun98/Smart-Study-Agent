@@ -41,6 +41,8 @@ ENV/
 *.swp
 *.swo
 .DS_Store
+.claude/
+memory/
 
 # Project artifacts
 SmartStudyAgent*.zip

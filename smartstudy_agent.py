@@ -65,7 +65,8 @@ class SmartStudyAgent:
     observe -> plan -> act -> evaluate -> adapt
     """
 
-    def __init__(self, api_key: Optional[str] = None, mock: bool = False):
+    def __init__(self, api_key: Optional[str] = None, mock: bool = False,
+                 policy: Optional[str] = None):
         # backend selection: mock > anthropic > hf > mock fallback
         if mock:
             self.client = MockAnthropic()
@@ -84,6 +85,14 @@ class SmartStudyAgent:
             self.client = MockAnthropic()
             self.model = "mock"
         self.profile = StudentProfile()
+
+        # Policy choice: "qlearning" (default) | "bandit" | "rule_based".
+        # Bandit added in response to feedback: if state transitions are
+        # small, contextual bandits are more sample-efficient than full RL.
+        self.policy_name = (
+            policy or os.environ.get("SMARTSTUDY_POLICY") or "qlearning"
+        ).lower()
+        self._topic_attempts: dict[str, int] = {}
 
     # --- Phase 1: OBSERVE ---
     # reads lecture content and pulls out the main topics
@@ -275,13 +284,35 @@ class SmartStudyAgent:
             missed=evaluation["missed_concepts"],
         )
 
-        # --- RL policy decides the action ---
-        from rl_policy import QLearningPolicy
-        policy = QLearningPolicy()
-        rl_action = policy.choose_action(evaluation["score"])
+        # --- Policy decides the action ---
+        new_score = evaluation["score"]
+        self._topic_attempts[topic] = self._topic_attempts.get(topic, 0) + 1
 
-        # train Q-table with real quiz data
-        policy.update(prev_score, rl_action, evaluation["score"])
+        if self.policy_name == "bandit":
+            from bandit_policy import LinUCBBandit
+            policy = LinUCBBandit()
+            attempts = self._topic_attempts[topic]
+            rl_action = policy.choose_action(
+                prev_score, attempts_on_topic=attempts, topic_idx=0,
+            )
+            reward = (new_score - prev_score) * 10.0
+            policy.update(prev_score, rl_action, reward,
+                          attempts_on_topic=attempts, topic_idx=0)
+            policy_label = "contextual_bandit"
+        elif self.policy_name == "rule_based":
+            if new_score < 0.5:
+                rl_action = "review"
+            elif new_score < 0.7:
+                rl_action = "reinforce"
+            else:
+                rl_action = "advance"
+            policy_label = "rule_based"
+        else:
+            from rl_policy import QLearningPolicy
+            policy = QLearningPolicy()
+            rl_action = policy.choose_action(new_score)
+            policy.update(prev_score, rl_action, new_score)
+            policy_label = "qlearning"
 
         # --- LLM generates the recommendation text (but action comes from RL) ---
         response = self.client.messages.create(
@@ -316,8 +347,9 @@ class SmartStudyAgent:
         text = next(b.text for b in response.content if b.type == "text")
         clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         result = json.loads(clean)
-        # ensure the RL action is used (not overridden by LLM)
+        # ensure the policy's action is used (not overridden by LLM)
         result["action"] = rl_action
+        result["policy"] = policy_label
         result["rl_policy_used"] = True
         return result
 
