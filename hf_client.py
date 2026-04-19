@@ -36,22 +36,41 @@ class HFAnthropicAdapter:
 
         def create(self, model, max_tokens, messages, system="",
                    thinking=None, **kwargs):
+            import time
             # convert anthropic messages format to openai format
             openai_messages = []
             if system:
+                # strengthen JSON contract for open-weight models
+                system = system + (
+                    "\n\nIMPORTANT: Respond with ONLY a valid JSON object/array. "
+                    "No prose, no markdown fences, no commentary before or after."
+                )
                 openai_messages.append({"role": "system", "content": system})
             for m in messages:
                 openai_messages.append({"role": m["role"], "content": m["content"]})
 
-            completion = self.parent.client.chat.completions.create(
-                model=self.parent.model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=0.7,
-            )
+            # open-weight models sometimes return empty strings on first try —
+            # retry up to 3 times, lowering temperature on each retry for stability
+            last_text = ""
+            for attempt in range(3):
+                temp = [0.3, 0.1, 0.0][attempt]
+                try:
+                    completion = self.parent.client.chat.completions.create(
+                        model=self.parent.model,
+                        messages=openai_messages,
+                        max_tokens=max(max_tokens, 1500),
+                        temperature=temp,
+                    )
+                    text = completion.choices[0].message.content or ""
+                    if text.strip():
+                        return _Response(text)
+                    last_text = text
+                except Exception:
+                    if attempt == 2:
+                        raise
+                time.sleep(0.6 * (attempt + 1))
 
-            text = completion.choices[0].message.content or ""
-            return _Response(text)
+            return _Response(last_text)
 
     def __init__(self, api_key: str = None, model: str = DEFAULT_MODEL):
         try:

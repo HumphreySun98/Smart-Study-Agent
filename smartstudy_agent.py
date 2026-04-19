@@ -174,15 +174,23 @@ class SmartStudyAgent:
     def plan(self, observed: dict) -> StudyPlan:
         profile_text = self.profile.summary()
 
+        example = (
+            '{\n'
+            '  "priorities": {"Topic A": "high", "Topic B": "medium"},\n'
+            '  "sequence": ["Topic A", "Topic B"],\n'
+            '  "rationale": "Short explanation of the ordering."\n'
+            '}'
+        )
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=1024,
+            max_tokens=1500,
             thinking={"type": "adaptive"},
             system=(
                 "You are an intelligent study planner. "
                 "Given a list of topics and a student's performance profile, "
                 "create a prioritised, personalised study plan. "
-                "Return only valid JSON."
+                "Return ONLY a JSON object with EXACTLY three keys: "
+                "priorities, sequence, rationale."
             ),
             messages=[
                 {
@@ -191,10 +199,12 @@ class SmartStudyAgent:
                         f"Topics extracted from lecture:\n{json.dumps(observed['topics'], indent=2)}\n\n"
                         f"Topic descriptions:\n{json.dumps(observed['descriptions'], indent=2)}\n\n"
                         f"Student profile:\n{profile_text}\n\n"
-                        "Return a JSON object with:\n"
-                        '  "priorities": {topic: "high"|"medium"|"low"},\n'
-                        '  "sequence": [ordered list of topics to study],\n'
-                        '  "rationale": "explanation of the plan"\n'
+                        "Return a JSON object with these keys:\n"
+                        "  priorities — object mapping each topic to one of \"high\", \"medium\", or \"low\"\n"
+                        "  sequence — array of topic names in the order they should be studied\n"
+                        "  rationale — a short string explaining the plan\n\n"
+                        "Example of the required format:\n"
+                        f"{example}"
                     ),
                 }
             ],
