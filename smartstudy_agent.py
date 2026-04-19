@@ -23,9 +23,11 @@ def _extract_json(text: str):
       - plain JSON
       - ```json ... ``` fenced blocks
       - leading/trailing prose around a JSON object/array
+      - mid-response truncation (auto-closes dangling brackets)
       - empty or whitespace-only responses (raises a clear error)
     """
     import re
+
     if not text or not text.strip():
         raise ValueError("LLM returned an empty response (possibly rate-limited or content-filtered).")
 
@@ -35,22 +37,114 @@ def _extract_json(text: str):
     s = re.sub(r"\s*```\s*$", "", s)
     s = s.strip()
 
+    # try the whole string as-is
     try:
         return json.loads(s)
     except json.JSONDecodeError:
         pass
 
-    # fall back: find the first {...} or [...] block
-    for opener, closer in (("{", "}"), ("[", "]")):
-        start = s.find(opener)
-        end = s.rfind(closer)
-        if start != -1 and end > start:
-            candidate = s[start:end + 1]
+    # pick the intended outer delimiter based on which comes first in the text
+    idx_brk = s.find("["); idx_brc = s.find("{")
+    if idx_brk == -1: outer_open, outer_close = "{", "}"
+    elif idx_brc == -1: outer_open, outer_close = "[", "]"
+    elif idx_brk < idx_brc: outer_open, outer_close = "[", "]"
+    else: outer_open, outer_close = "{", "}"
+
+    # if the outer closer is missing entirely, the response is truncated — repair first
+    if s.rfind(outer_close) == -1:
+        repaired = _repair_truncated_json(s)
+        if repaired is not None:
+            return repaired
+
+    # try delimiter match on intended outer type
+    start = s.find(outer_open)
+    if start != -1:
+        end = s.rfind(outer_close)
+        while end > start:
             try:
-                return json.loads(candidate)
+                return json.loads(s[start:end + 1])
             except json.JSONDecodeError:
-                continue
-    raise ValueError(f"Could not parse JSON from LLM response. First 200 chars: {s[:200]!r}")
+                end = s.rfind(outer_close, start, end)
+
+    # try the other delimiter type as a fallback
+    alt_open, alt_close = ("{", "}") if outer_open == "[" else ("[", "]")
+    start = s.find(alt_open)
+    if start != -1:
+        end = s.rfind(alt_close)
+        while end > start:
+            try:
+                return json.loads(s[start:end + 1])
+            except json.JSONDecodeError:
+                end = s.rfind(alt_close, start, end)
+
+    # final repair attempt
+    repaired = _repair_truncated_json(s)
+    if repaired is not None:
+        return repaired
+
+    raise ValueError(
+        f"Could not parse JSON from LLM response. First 200 chars: {s[:200]!r}"
+    )
+
+
+def _repair_truncated_json(s: str):
+    """
+    Heuristic repair for truncated JSON: balance open braces/brackets,
+    close any unterminated string, drop trailing incomplete elements.
+    Returns parsed JSON or None if repair fails.
+    """
+    # find outer opener
+    first = s.lstrip()[:1]
+    if first not in ("{", "["):
+        return None
+    start = s.find(first)
+    tail = s[start:]
+
+    # strip any obvious trailing prose after last reasonable char
+    stack = []
+    in_str = False; esc = False
+    last_valid = 0
+    for i, ch in enumerate(tail):
+        if esc:
+            esc = False; continue
+        if ch == "\\":
+            esc = True; continue
+        if ch == '"' and not esc:
+            in_str = not in_str; continue
+        if in_str:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if stack:
+                stack.pop()
+                if not stack:
+                    last_valid = i + 1
+
+    # attempt a few closing strategies
+    candidates = []
+    if in_str:
+        closing = '"' + "".join("]" if c == "[" else "}" for c in reversed(stack))
+    else:
+        closing = "".join("]" if c == "[" else "}" for c in reversed(stack))
+
+    # try (1) naive close
+    candidates.append(tail + closing)
+    # try (2) cut to last comma inside the outer structure, then close
+    trimmed = tail
+    comma = trimmed.rfind(",")
+    if comma != -1:
+        candidates.append(trimmed[:comma] + closing)
+    # try (3) cut to last_valid and close
+    if last_valid:
+        candidates.append(tail[:last_valid])
+
+    for cand in candidates:
+        try:
+            return json.loads(cand)
+        except json.JSONDecodeError:
+            continue
+    return None
 
 
 # ---- data classes to hold student info, plans, and quiz questions ----
@@ -224,13 +318,24 @@ class SmartStudyAgent:
     # generates MCQ quiz questions for a specific topic
 
     def act(self, topic: str, topic_description: str, n: int = 3) -> list[QuizQuestion]:
+        example = (
+            '[\n'
+            '  {\n'
+            '    "question": "Short question text?",\n'
+            '    "choices": ["A) option 1", "B) option 2", "C) option 3", "D) option 4"],\n'
+            '    "correct_answer": "B",\n'
+            '    "explanation": "Short explanation why B is correct."\n'
+            '  }\n'
+            ']'
+        )
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=3500,
             system=(
                 "You are an expert quiz writer for university-level AI courses. "
-                "Create clear, challenging multiple-choice questions. "
-                "Return only valid JSON."
+                "Create clear, CONCISE multiple-choice questions. "
+                "Each question, choice, and explanation should be short. "
+                "Return ONLY a JSON array, no prose before or after."
             ),
             messages=[
                 {
@@ -238,12 +343,16 @@ class SmartStudyAgent:
                     "content": (
                         f"Topic: {topic}\n"
                         f"Description: {topic_description}\n\n"
-                        f"Create exactly {n} multiple-choice questions.\n"
-                        "Return a JSON array where each element has:\n"
-                        '  "question": "the question text",\n'
-                        '  "choices": ["A) ...", "B) ...", "C) ...", "D) ..."],\n'
-                        '  "correct_answer": "A"|"B"|"C"|"D",\n'
-                        '  "explanation": "why the correct answer is right"\n'
+                        f"Create exactly {n} multiple-choice questions. "
+                        "Keep each question under 30 words. Keep each choice under 15 words. "
+                        "Keep each explanation under 30 words.\n\n"
+                        "Return a JSON array. Each element has these keys:\n"
+                        "  question — the question text (string)\n"
+                        "  choices — array of exactly 4 strings, each prefixed \"A) \", \"B) \", \"C) \", \"D) \"\n"
+                        "  correct_answer — single letter A, B, C, or D\n"
+                        "  explanation — short string\n\n"
+                        "Example of the required format:\n"
+                        f"{example}"
                     ),
                 }
             ],
