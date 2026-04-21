@@ -37,7 +37,188 @@ st.set_page_config(
     page_title="SmartStudy Agent",
     page_icon="📚",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
+
+
+# ---- premium visual theme (CSS injection) ----
+
+def inject_premium_theme():
+    """Injects a modern gradient/glass theme on top of Streamlit."""
+    st.markdown(
+        """
+        <style>
+        /* ===== Fonts ===== */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap');
+
+        html, body, [class*="css"], .stApp, [data-testid="stSidebar"] {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }
+        code, pre { font-family: 'JetBrains Mono', monospace !important; }
+
+        /* ===== Background: deep gradient + subtle radial accent ===== */
+        .stApp {
+            background:
+                radial-gradient(1200px 600px at 85% -10%, rgba(74,144,226,0.18), transparent 60%),
+                radial-gradient(900px 500px at -10% 110%, rgba(230,126,34,0.12), transparent 55%),
+                linear-gradient(180deg, #0B1020 0%, #0F172A 55%, #0B1020 100%) !important;
+            color: #E6EDF6 !important;
+        }
+
+        /* ===== Sidebar: glassmorphism ===== */
+        [data-testid="stSidebar"] > div:first-child {
+            background: rgba(15, 23, 42, 0.7) !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-right: 1px solid rgba(74,144,226,0.15);
+        }
+        [data-testid="stSidebar"] h1 {
+            font-size: 26px !important;
+            font-weight: 800 !important;
+            background: linear-gradient(90deg, #6FB3FF, #A78BFA);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        /* ===== Hero welcome title ===== */
+        .hero-title {
+            font-size: 56px !important;
+            font-weight: 800 !important;
+            line-height: 1.05 !important;
+            letter-spacing: -1.5px;
+            background: linear-gradient(120deg, #A78BFA 0%, #6FB3FF 45%, #60E1C6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0.1em 0 0.2em 0;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .hero-sub {
+            font-size: 18px;
+            color: #93A4C3;
+            max-width: 780px;
+            line-height: 1.55;
+            margin-bottom: 2rem;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        /* ===== Feature cards ===== */
+        .ss-card-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin: 12px 0 8px 0;
+        }
+        @media (max-width: 900px) { .ss-card-row { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 520px) { .ss-card-row { grid-template-columns: 1fr; } }
+        .ss-card {
+            padding: 18px;
+            border-radius: 16px;
+            background: linear-gradient(145deg, rgba(74,144,226,0.08), rgba(167,139,250,0.05));
+            border: 1px solid rgba(111,179,255,0.18);
+            transition: transform .25s ease, box-shadow .25s ease, border .25s ease;
+            animation: fadeInUp 0.9s ease-out;
+        }
+        .ss-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(74,144,226,0.18);
+            border-color: rgba(111,179,255,0.35);
+        }
+        .ss-card .icon { font-size: 26px; margin-bottom: 8px; }
+        .ss-card .title { font-weight: 700; color: #E6EDF6; font-size: 15px; }
+        .ss-card .desc  { color: #93A4C3; font-size: 13px; margin-top: 4px; line-height: 1.45; }
+
+        /* ===== Metric cards ===== */
+        div[data-testid="stMetric"] {
+            background: linear-gradient(145deg, rgba(74,144,226,0.10), rgba(167,139,250,0.06));
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(111,179,255,0.18);
+            transition: transform .25s ease, box-shadow .25s ease;
+        }
+        div[data-testid="stMetric"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 22px rgba(74,144,226,0.16);
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 28px !important;
+            font-weight: 800 !important;
+            background: linear-gradient(90deg, #6FB3FF, #A78BFA);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        div[data-testid="stMetricLabel"] { color: #93A4C3 !important; font-weight: 500; }
+
+        /* ===== Buttons ===== */
+        .stButton > button {
+            background: linear-gradient(135deg, #4A90E2 0%, #6B4AE2 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            padding: 0.55rem 1.2rem !important;
+            box-shadow: 0 4px 14px rgba(74,144,226,0.25);
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .stButton > button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(74,144,226,0.4);
+        }
+
+        /* ===== Live backend badge ===== */
+        .backend-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(46,204,113,0.18), rgba(74,144,226,0.18));
+            border: 1px solid rgba(46,204,113,0.35);
+            font-weight: 600;
+            font-size: 13px;
+            color: #B7F0D8;
+        }
+        .backend-badge.mock {
+            background: rgba(245,158,11,0.12);
+            border-color: rgba(245,158,11,0.35);
+            color: #FDE68A;
+        }
+        .backend-badge .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2ECC71;
+            box-shadow: 0 0 0 0 rgba(46,204,113,0.6);
+            animation: pulse 1.6s infinite;
+        }
+        .backend-badge.mock .dot { background: #F59E0B; box-shadow: 0 0 0 0 rgba(245,158,11,0.5); }
+
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(46,204,113,0.6); }
+            70%  { box-shadow: 0 0 0 8px rgba(46,204,113,0); }
+            100% { box-shadow: 0 0 0 0 rgba(46,204,113,0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== Subtle tweaks ===== */
+        h1, h2, h3 { letter-spacing: -0.3px; }
+        .stTabs [data-baseweb="tab-list"] { gap: 6px; }
+        .stTabs [data-baseweb="tab"] {
+            background: rgba(74,144,226,0.08);
+            border-radius: 10px 10px 0 0;
+        }
+        hr { border-color: rgba(111,179,255,0.12) !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+inject_premium_theme()
 
 
 # ---- session state init ----
@@ -127,11 +308,19 @@ with st.sidebar:
 
     st.divider()
 
-    # API mode indicator
+    # API mode indicator — premium badge
     if st.session_state.use_mock:
-        st.warning("Mock mode (no API key)")
+        st.markdown(
+            '<div class="backend-badge mock"><span class="dot"></span>'
+            'Mock Mode · Offline</div>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.success(f"Live: {st.session_state.backend_label}")
+        st.markdown(
+            f'<div class="backend-badge"><span class="dot"></span>'
+            f'Live · {st.session_state.backend_label}</div>',
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
@@ -152,8 +341,51 @@ with st.sidebar:
 # ---- helpful banner if no student selected ----
 
 if not st.session_state.current_student:
-    st.title("Welcome to SmartStudy Agent")
-    st.info("👈 Create or select a student in the sidebar to begin.")
+    st.markdown(
+        """
+        <div style="margin-top: 1rem;">
+            <div style="font-size: 13px; font-weight: 700; letter-spacing: 3px;
+                        color: #6FB3FF; text-transform: uppercase; margin-bottom: 10px;">
+                Adaptive AI · POMDP · Reinforcement Learning
+            </div>
+            <div class="hero-title">SmartStudy Agent</div>
+            <div class="hero-sub">
+                An adaptive AI tutor that <b>learns how you learn</b>.
+                Upload any lecture — the agent extracts topics, plans a path,
+                generates quizzes, and adapts every session using a closed-loop
+                reasoning cycle.
+            </div>
+        </div>
+        <div class="ss-card-row">
+            <div class="ss-card">
+                <div class="icon">🧠</div>
+                <div class="title">POMDP Belief State</div>
+                <div class="desc">Persistent profile tracks every topic you've mastered or missed.</div>
+            </div>
+            <div class="ss-card">
+                <div class="icon">🎯</div>
+                <div class="title">RL-Driven Decisions</div>
+                <div class="desc">Q-learning + LinUCB bandit pick the action — not the LLM.</div>
+            </div>
+            <div class="ss-card">
+                <div class="icon">🔄</div>
+                <div class="title">OPEAA Loop</div>
+                <div class="desc">Observe → Plan → Act → Evaluate → Adapt. Five structured Claude calls.</div>
+            </div>
+            <div class="ss-card">
+                <div class="icon">🚀</div>
+                <div class="title">Deployed & Free</div>
+                <div class="desc">Live on Hugging Face with a zero-cost Kimi-K2 backend.</div>
+            </div>
+        </div>
+        <div style="margin-top: 1.5rem; padding: 14px 18px; border-radius: 12px;
+                    background: rgba(74,144,226,0.10); border: 1px solid rgba(111,179,255,0.25);
+                    color: #C8D7EF;">
+            👈 <b>Get started</b> — create or select a student in the sidebar.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 
