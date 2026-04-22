@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "SmartStudy Agent",
+  "version": "0.1.0",
+  "description": "Adaptive AI tutor — turns any web page into a personalized quiz with a closed-loop reasoning cycle.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SmartStudy Agent",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.anthropic.com/*"
+  ],
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

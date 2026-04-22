@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SmartStudy — Settings</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    html, body { width: 520px; min-height: 400px; }
+    .app { max-width: 520px; padding: 22px; }
+    .section { margin-bottom: 14px; }
+    .label { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 6px; display: block; }
+    .help  { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+    .input {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+    .input:focus { outline: none; border-color: var(--brand-1); }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .small { font-size: 11px; color: var(--text-mute); margin-top: 6px; }
+    .link { color: var(--brand-1); text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+    .status { font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 8px; }
+    .status.ok    { background: rgba(34,197,94,0.12);  color: #BBF7D0; border: 1px solid rgba(34,197,94,0.3); }
+    .status.warn  { background: rgba(245,158,11,0.12); color: #FDE68A; border: 1px solid rgba(245,158,11,0.3); }
+    .dangerzone  { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div class="brand">
+        <div class="logo">⚙️</div>
+        <div class="brand-text">
+          <div class="brand-title">SmartStudy Settings</div>
+          <div class="brand-sub">Configure your AI backend</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="section card">
+      <label class="label" for="apiKey">Anthropic API key</label>
+      <p class="help">
+        Paste your key from
+        <a class="link" href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
+        Stored locally in <code>chrome.storage.local</code> — it never leaves your browser.
+      </p>
+      <input class="input" id="apiKey" type="password" placeholder="sk-ant-api03-..." />
+      <div class="row" style="margin-top: 10px;">
+        <button class="btn btn-primary" id="save">Save</button>
+        <button class="btn btn-ghost" id="toggleVis">Show</button>
+      </div>
+      <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <div class="section card">
+      <label class="label">Model</label>
+      <p class="help">We use <code>claude-opus-4-5</code> by default. Change below if needed.</p>
+      <input class="input" id="model" value="claude-opus-4-5" />
+      <div class="small">Tip: <code>claude-sonnet-4-5</code> is faster + cheaper for testing.</div>
+    </div>
+
+    <div class="section dangerzone">
+      <label class="label">Reset agent state</label>
+      <p class="help">Clears the Q-learning table (the agent forgets what it learned).</p>
+      <button class="btn btn-ghost" id="resetQ">Reset Q-table</button>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

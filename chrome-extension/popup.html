@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartStudy Agent</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div class="brand">
+        <div class="logo">📚</div>
+        <div class="brand-text">
+          <div class="brand-title">SmartStudy</div>
+          <div class="brand-sub">Adaptive Learning Agent</div>
+        </div>
+        <div class="backend-badge" id="backendBadge">
+          <span class="dot"></span>
+          <span id="backendLabel">Not configured</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Phase 0: no API key -->
+    <section id="view-nokey" class="view hidden">
+      <div class="card warning">
+        <div class="card-title">⚠️ API key required</div>
+        <p class="card-text">
+          Open settings and paste your Anthropic API key to start.
+          The key is stored locally in your browser — it never leaves your device.
+        </p>
+        <button class="btn btn-primary" id="openOptions">Open settings</button>
+      </div>
+    </section>
+
+    <!-- Phase 1: Observe -->
+    <section id="view-start" class="view">
+      <div class="card">
+        <div class="card-title">🔍 Observe — extract topics</div>
+        <p class="card-text">
+          Click below. SmartStudy will read the current page,
+          extract the main topics using Claude, and build a study plan.
+        </p>
+        <button class="btn btn-primary" id="btnObserve">
+          <span class="btn-icon">⚡</span>
+          Observe this page
+        </button>
+      </div>
+      <div class="meta">
+        <span class="phase-pill">POMDP</span>
+        <span class="phase-pill">Q-Learning</span>
+        <span class="phase-pill">Claude API</span>
+      </div>
+    </section>
+
+    <!-- Phase 1 loading -->
+    <section id="view-observing" class="view hidden">
+      <div class="card">
+        <div class="card-title">🔍 Observing…</div>
+        <div class="loader"></div>
+        <p class="card-text subtle" id="observingStatus">Reading page content…</p>
+      </div>
+    </section>
+
+    <!-- Phase 2: Topics shown, click to generate quiz -->
+    <section id="view-topics" class="view hidden">
+      <div class="card-title">📚 Topics extracted</div>
+      <p class="card-text subtle" id="summary"></p>
+      <div class="topic-list" id="topicList"></div>
+      <button class="btn btn-ghost" id="btnRestart">← Start over</button>
+    </section>
+
+    <!-- Phase 3: Quiz -->
+    <section id="view-quiz" class="view hidden">
+      <div class="card-title" id="quizHeader">🎯 Quiz</div>
+      <div id="quizContainer"></div>
+      <button class="btn btn-primary" id="btnSubmit">Submit answers</button>
+      <button class="btn btn-ghost" id="btnBackTopics">← Topics</button>
+    </section>
+
+    <!-- Phase 4-5: Result + Adapt -->
+    <section id="view-result" class="view hidden">
+      <div class="score-big" id="scoreBig">—</div>
+      <div class="score-label" id="scoreLabel">Your score</div>
+
+      <div class="card">
+        <div class="card-title">📊 Feedback</div>
+        <p class="card-text" id="feedbackText">—</p>
+      </div>
+
+      <div class="card adapt">
+        <div class="card-title">🧠 Agent decision</div>
+        <div class="adapt-row">
+          <div class="adapt-label">Policy action</div>
+          <div class="adapt-value" id="adaptAction">—</div>
+        </div>
+        <div class="adapt-row">
+          <div class="adapt-label">Why</div>
+          <div class="adapt-value subtle" id="adaptReason">—</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btnNewQuiz">🔄 New topic</button>
+      <button class="btn btn-ghost" id="btnRestart2">← Start over</button>
+    </section>
+
+    <!-- Error view -->
+    <section id="view-error" class="view hidden">
+      <div class="card danger">
+        <div class="card-title">❌ Something went wrong</div>
+        <p class="card-text" id="errorText">—</p>
+        <button class="btn btn-primary" id="btnRetry">Try again</button>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <a href="https://github.com/HumphreySun98/Smart-Study-Agent" target="_blank">GitHub</a>
+      <span>·</span>
+      <a href="https://huggingface.co/spaces/HumphreySun98/smart-study-agent" target="_blank">Live Web App</a>
+      <span>·</span>
+      <a href="#" id="footSettings">Settings</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
