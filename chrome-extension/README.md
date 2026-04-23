@@ -3,7 +3,13 @@
 Turns any web page into a **personalized quiz** powered by an adaptive AI tutor.
 Same OPEAA closed-loop reasoning cycle as the [web app](https://huggingface.co/spaces/HumphreySun98/smart-study-agent) — delivered as a Chrome extension so you study **where you already are**.
 
-![SmartStudy icon](icons/icon128.png)
+<p align="center">
+  <img src="screenshots/popup.png" alt="SmartStudy Chrome extension popup" width="360" />
+</p>
+
+<p align="center">
+  <img src="icons/icon128.png" alt="SmartStudy icon" width="64" />
+</p>
 
 ---
 

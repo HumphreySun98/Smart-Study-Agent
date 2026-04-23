@@ -5,14 +5,22 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Claude API](https://img.shields.io/badge/Claude-opus--4--6-purple.svg)](https://www.anthropic.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red.svg)](https://streamlit.io/)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension_(MV3)-4A90E2.svg)](chrome-extension/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Hugging Face Space](https://img.shields.io/badge/🤗_Live_Demo-Hugging_Face-yellow.svg)](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
 
-## 🌐 Live Demo
+## 🌐 Live — Two Ways to Use It
 
-**Try it now:** [huggingface.co/spaces/HumphreySun98/smart-study-agent](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
+| | Where it runs | How to try it |
+|---|---|---|
+| **Web app** | Hugging Face Spaces (free Kimi-K2 backend) | [Open in browser](https://huggingface.co/spaces/HumphreySun98/smart-study-agent) |
+| **Chrome extension** | Your browser — works on any page | [Install guide](chrome-extension/) (MV3, load unpacked) |
 
-The live demo runs on Hugging Face Spaces using free HF Inference Providers (Kimi-K2). For local use, you can plug in your own Anthropic key to get Claude's higher-quality reasoning.
+<p align="center">
+  <img src="chrome-extension/screenshots/popup.png" alt="SmartStudy Chrome extension popup" width="320" />
+</p>
+
+The web app runs on Hugging Face Spaces using free HF Inference Providers (Kimi-K2). The Chrome extension calls the Anthropic API directly from your browser — same agent core, zero backend. For local development, plug in your own Anthropic key to get Claude's higher-quality reasoning.
 
 SmartStudy Agent is a goal-based, partially observable AI agent that turns any lecture material into a fully personalized learning experience. Unlike a chatbot, it maintains a persistent belief state about student knowledge and uses an adaptive policy to decide what to study next.
 
@@ -101,7 +109,8 @@ The agent is modeled as a **POMDP** (partially observable Markov decision proces
 - **Mock client** — `MockAnthropic` lets you run the entire system offline without an API key
 
 ### User Interface
-- **Streamlit web app** with 8 pages
+- **Streamlit web app** with 8 pages (premium glassmorphism theme)
+- **Chrome extension (MV3)** — run the full OPEAA loop on any web page, Q-table persisted in `chrome.storage.local`
 - **Interactive terminal UI** powered by `rich`
 - **Auto-demo mode** for video recording
 
@@ -160,6 +169,15 @@ python demo.py --mock                  # offline mode, no API key needed
 ```bash
 python demo_auto.py
 ```
+
+### Chrome extension (run the agent on any web page)
+```
+1. chrome://extensions  →  enable Developer mode
+2. Load unpacked  →  select the chrome-extension/ folder
+3. Click the SmartStudy icon → Settings → paste your Anthropic key
+4. Open any article / docs page → click the icon → "Observe this page"
+```
+Full install + architecture notes in [chrome-extension/README.md](chrome-extension/).
 
 ---
 
@@ -265,6 +283,14 @@ smartstudy-agent/
 ├── generate_visuals.py     # Generates architecture diagrams
 ├── requirements.txt        # Python dependencies
 ├── README.md               # This file
+│
+├── chrome-extension/       # Chrome MV3 extension — OPEAA loop in the browser
+│   ├── manifest.json
+│   ├── popup.{html,css,js} # Gradient popup UI + full agent logic
+│   ├── content.js          # Active-tab text extractor
+│   ├── options.{html,js}   # API key + model settings
+│   ├── background.js       # Service worker
+│   └── icons/              # 16/48/128 PNG
 │
 ├── data/                   # Created at runtime
 │   ├── smartstudy.db       # SQLite database (student profiles + sessions)
@@ -387,6 +413,9 @@ Following the evaluation feedback, we replaced the earlier noise-only simulator 
 - [x] Deployed as hosted SaaS on [Hugging Face Spaces](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
 - [x] Contextual Bandit (LinUCB) policy as an alternative to full RL
 - [x] 4-way evaluation against Rule-based baseline + Simulated Student Model (per professor feedback)
+- [x] **Chrome extension (MV3)** — same OPEAA loop on any web page, client-side Q-learning
+- [ ] Migrate extension to `chrome.sidePanel` for persistent belief-state display
+- [ ] Chrome Web Store listing
 
 ---
 
