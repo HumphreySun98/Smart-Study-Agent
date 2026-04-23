@@ -1,5 +1,5 @@
 // content.js — extracts the visible main content of the current page.
-// Injected on-demand via chrome.scripting.executeScript from popup.js.
+// Injected on-demand via chrome.scripting.executeScript from sidepanel.js.
 
 (function () {
   function getVisibleText() {

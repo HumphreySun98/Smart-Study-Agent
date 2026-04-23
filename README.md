@@ -14,7 +14,7 @@
 | | Where it runs | How to try it |
 |---|---|---|
 | **Web app** | Hugging Face Spaces (free Kimi-K2 backend) | [Open in browser](https://huggingface.co/spaces/HumphreySun98/smart-study-agent) |
-| **Chrome extension** | Your browser — works on any page | [Install guide](chrome-extension/) (MV3, load unpacked) |
+| **Chrome extension** | Your browser — works on any page, PDF, or YouTube video | [Install guide](chrome-extension/) (MV3) — submitted to the Chrome Web Store, **pending review** |
 
 <p align="center">
   <img src="chrome-extension/screenshots/popup.png" alt="SmartStudy Chrome extension popup" width="320" />
@@ -170,12 +170,16 @@ python demo.py --mock                  # offline mode, no API key needed
 python demo_auto.py
 ```
 
-### Chrome extension (run the agent on any web page)
+### Chrome extension (run the agent on any web page, PDF, or YouTube video)
+
+The extension has been **submitted to the Chrome Web Store** and is currently **pending review**. Until it goes live, install it unpacked in < 60 seconds:
+
 ```
 1. chrome://extensions  →  enable Developer mode
 2. Load unpacked  →  select the chrome-extension/ folder
-3. Click the SmartStudy icon → Settings → paste your Anthropic key
-4. Open any article / docs page → click the icon → "Observe this page"
+3. Pin the SmartStudy icon → clicking it opens the Side Panel
+4. Settings → pick a backend (Anthropic or free HF) → paste key → Save
+5. Open any article / PDF / YouTube page → "Observe this page"
 ```
 Full install + architecture notes in [chrome-extension/README.md](chrome-extension/).
 

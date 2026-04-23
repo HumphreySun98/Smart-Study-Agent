@@ -1,6 +1,6 @@
 // lib/llm_backends.js
 // Pluggable LLM backend layer — same interface, swappable provider.
-// Used by popup.js and sidepanel.js. Called as ES module.
+// Used by sidepanel.js. Imported as an ES module.
 
 // -------- Anthropic Claude (direct browser call) --------
 
