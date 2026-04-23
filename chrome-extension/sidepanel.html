@@ -5,6 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SmartStudy Agent</title>
   <link rel="stylesheet" href="popup.css" />
+  <style>
+    /* side-panel override: full-height narrow column */
+    html, body { width: 100%; height: 100vh; overflow-y: auto; }
+    .app { min-height: 100vh; padding: 14px; }
+
+    .belief-panel {
+      margin-top: 4px; padding: 10px 12px;
+      background: rgba(34, 197, 94, 0.06);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 10px;
+    }
+    .belief-panel.empty { background: rgba(74,144,226,0.05); border-color: rgba(111,179,255,0.15); }
+    .belief-title { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 4px; }
+    .belief-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 2px 0; }
+    .belief-row .k { color: var(--text-dim); }
+    .belief-row .v { color: var(--text); font-weight: 600; }
+    .belief-topics { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .belief-chip {
+      font-size: 10px; padding: 3px 8px; border-radius: 999px;
+      background: rgba(34,197,94,0.15); color: #BBF7D0;
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+    .belief-chip.weak { background: rgba(239,68,68,0.12); color: #FCA5A5; border-color: rgba(239,68,68,0.25); }
+
+    .qtable-mini {
+      display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 2px;
+      margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    }
+    .qtable-mini .cell {
+      padding: 4px 6px; border-radius: 4px; text-align: center;
+      background: rgba(111,179,255,0.06);
+    }
+    .qtable-mini .hcell { color: var(--text-dim); font-weight: 700; background: transparent; }
+    .qtable-mini .rowlabel { color: var(--text-dim); font-weight: 600; background: transparent; text-align: left; font-size: 10px; padding: 4px 2px; }
+    .qtable-mini .best { background: linear-gradient(135deg, rgba(74,144,226,0.35), rgba(167,139,250,0.3)); color: white; font-weight: 700; }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -13,22 +49,31 @@
         <div class="logo">📚</div>
         <div class="brand-text">
           <div class="brand-title">SmartStudy</div>
-          <div class="brand-sub">Adaptive Learning Agent</div>
+          <div class="brand-sub">Adaptive Learning · Side Panel</div>
         </div>
         <div class="backend-badge" id="backendBadge">
           <span class="dot"></span>
-          <span id="backendLabel">Not configured</span>
+          <span id="backendLabel">Loading…</span>
         </div>
       </div>
     </header>
 
+    <!-- Persistent belief state panel -->
+    <section class="belief-panel empty" id="beliefPanel">
+      <div class="belief-title">🧠 Belief State</div>
+      <div class="belief-row"><span class="k">Topics seen</span><span class="v" id="bCount">0</span></div>
+      <div class="belief-row"><span class="k">Avg score</span><span class="v" id="bAvg">—</span></div>
+      <div class="belief-row"><span class="k">Last action</span><span class="v" id="bAction">—</span></div>
+      <div class="belief-topics" id="bTopics"></div>
+    </section>
+
     <!-- Phase 0: no API key -->
     <section id="view-nokey" class="view hidden">
       <div class="card warning">
-        <div class="card-title">⚠️ API key required</div>
+        <div class="card-title">⚠️ Backend not configured</div>
         <p class="card-text">
-          Open settings and paste your Anthropic API key to start.
-          The key is stored locally in your browser — it never leaves your device.
+          Open settings to pick a backend (Claude or HF Kimi-K2) and paste your key.
+          Key stays locally in your browser.
         </p>
         <button class="btn btn-primary" id="openOptions">Open settings</button>
       </div>
@@ -39,8 +84,8 @@
       <div class="card">
         <div class="card-title">🔍 Observe — extract topics</div>
         <p class="card-text">
-          Click below. SmartStudy will read the current page,
-          extract the main topics using Claude, and build a study plan.
+          SmartStudy will read the current page / PDF / YouTube transcript,
+          extract study topics, and build a personalized plan.
         </p>
         <button class="btn btn-primary" id="btnObserve">
           <span class="btn-icon">⚡</span>
@@ -50,7 +95,7 @@
       <div class="meta">
         <span class="phase-pill">POMDP</span>
         <span class="phase-pill">Q-Learning</span>
-        <span class="phase-pill">Claude API</span>
+        <span class="phase-pill" id="metaBackend">Claude</span>
       </div>
     </section>
 
@@ -63,7 +108,7 @@
       </div>
     </section>
 
-    <!-- Phase 2: Topics shown, click to generate quiz -->
+    <!-- Phase 2: topics -->
     <section id="view-topics" class="view hidden">
       <div class="card-title">📚 Topics extracted</div>
       <p class="card-text subtle" id="summary"></p>
@@ -71,7 +116,7 @@
       <button class="btn btn-ghost" id="btnRestart">← Start over</button>
     </section>
 
-    <!-- Phase 3: Quiz -->
+    <!-- Phase 3: quiz -->
     <section id="view-quiz" class="view hidden">
       <div class="card-title" id="quizHeader">🎯 Quiz</div>
       <div id="quizContainer"></div>
@@ -79,7 +124,7 @@
       <button class="btn btn-ghost" id="btnBackTopics">← Topics</button>
     </section>
 
-    <!-- Phase 4-5: Result + Adapt -->
+    <!-- Phase 4-5 result -->
     <section id="view-result" class="view hidden">
       <div class="score-big" id="scoreBig">—</div>
       <div class="score-label" id="scoreLabel">Your score</div>
@@ -101,11 +146,17 @@
         </div>
       </div>
 
+      <!-- Mini Q-table viewer -->
+      <div class="card">
+        <div class="card-title">🎯 Q-table (learned policy)</div>
+        <div id="qtableMini" class="qtable-mini"></div>
+      </div>
+
       <button class="btn btn-primary" id="btnNewQuiz">🔄 New topic</button>
       <button class="btn btn-ghost" id="btnRestart2">← Start over</button>
     </section>
 
-    <!-- Error view -->
+    <!-- Error -->
     <section id="view-error" class="view hidden">
       <div class="card danger">
         <div class="card-title">❌ Something went wrong</div>
@@ -117,12 +168,12 @@
     <footer class="foot">
       <a href="https://github.com/HumphreySun98/Smart-Study-Agent" target="_blank">GitHub</a>
       <span>·</span>
-      <a href="https://huggingface.co/spaces/HumphreySun98/smart-study-agent" target="_blank">Live Web App</a>
+      <a href="https://huggingface.co/spaces/HumphreySun98/smart-study-agent" target="_blank">Web App</a>
       <span>·</span>
       <a href="#" id="footSettings">Settings</a>
     </footer>
   </div>
 
-  <script src="popup.js"></script>
+  <script src="sidepanel.js" type="module"></script>
 </body>
 </html>

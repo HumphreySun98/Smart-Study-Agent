@@ -5,8 +5,8 @@
   <title>SmartStudy — Settings</title>
   <link rel="stylesheet" href="popup.css" />
   <style>
-    html, body { width: 520px; min-height: 400px; }
-    .app { max-width: 520px; padding: 22px; }
+    html, body { width: 580px; min-height: 520px; }
+    .app { max-width: 580px; padding: 22px; }
     .section { margin-bottom: 14px; }
     .label { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 6px; display: block; }
     .help  { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
@@ -29,6 +29,27 @@
     .status.ok    { background: rgba(34,197,94,0.12);  color: #BBF7D0; border: 1px solid rgba(34,197,94,0.3); }
     .status.warn  { background: rgba(245,158,11,0.12); color: #FDE68A; border: 1px solid rgba(245,158,11,0.3); }
     .dangerzone  { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+    .backend-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .backend-option {
+      cursor: pointer;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15,23,42,0.4);
+      transition: all .15s ease;
+    }
+    .backend-option:hover { border-color: var(--border-hi); }
+    .backend-option.selected {
+      background: linear-gradient(135deg, rgba(74,144,226,0.2), rgba(167,139,250,0.15));
+      border-color: var(--brand-1);
+      box-shadow: 0 0 0 1px var(--brand-1) inset;
+    }
+    .backend-option .name { font-weight: 700; color: var(--text); font-size: 13px; margin-bottom: 4px; }
+    .backend-option .tag  { font-size: 10px; color: var(--brand-1); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+    .backend-option .desc { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+    .backend-fields { display: none; }
+    .backend-fields.active { display: block; animation: fadeIn .2s ease-out; }
   </style>
 </head>
 <body>
@@ -43,35 +64,71 @@
       </div>
     </header>
 
+    <!-- Backend picker -->
     <div class="section card">
-      <label class="label" for="apiKey">Anthropic API key</label>
-      <p class="help">
-        Paste your key from
-        <a class="link" href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
-        Stored locally in <code>chrome.storage.local</code> — it never leaves your browser.
-      </p>
-      <input class="input" id="apiKey" type="password" placeholder="sk-ant-api03-..." />
-      <div class="row" style="margin-top: 10px;">
-        <button class="btn btn-primary" id="save">Save</button>
-        <button class="btn btn-ghost" id="toggleVis">Show</button>
+      <label class="label">LLM backend</label>
+      <p class="help">Switch any time — all state is preserved.</p>
+      <div class="backend-picker">
+        <div class="backend-option" data-backend="anthropic" id="opt-anthropic">
+          <div class="tag">⭐ Premium</div>
+          <div class="name">Anthropic Claude</div>
+          <div class="desc">Highest quality. Pay-as-you-go via your key.</div>
+        </div>
+        <div class="backend-option" data-backend="hf" id="opt-hf">
+          <div class="tag">🎁 Free</div>
+          <div class="name">HF Kimi-K2</div>
+          <div class="desc">Free tier via Hugging Face router. Slower, open-weight.</div>
+        </div>
       </div>
-      <div id="status" class="status" style="display: none;"></div>
     </div>
 
+    <!-- Anthropic key -->
+    <div class="section card backend-fields" id="fields-anthropic">
+      <label class="label" for="anthropicKey">Anthropic API key</label>
+      <p class="help">
+        Get yours at
+        <a class="link" href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
+        Stored in <code>chrome.storage.local</code> — never transmitted except directly to Anthropic.
+      </p>
+      <input class="input" id="anthropicKey" type="password" placeholder="sk-ant-api03-..." />
+      <div class="row" style="margin-top: 10px;">
+        <button class="btn btn-ghost" id="toggleAnthropic">Show</button>
+      </div>
+    </div>
+
+    <!-- HF token -->
+    <div class="section card backend-fields" id="fields-hf">
+      <label class="label" for="hfKey">Hugging Face token</label>
+      <p class="help">
+        Free Read token from
+        <a class="link" href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a>.
+        Calls go through the OpenAI-compatible router at
+        <code>router.huggingface.co/v1</code>.
+      </p>
+      <input class="input" id="hfKey" type="password" placeholder="hf_..." />
+      <div class="row" style="margin-top: 10px;">
+        <button class="btn btn-ghost" id="toggleHf">Show</button>
+      </div>
+    </div>
+
+    <!-- Model override -->
     <div class="section card">
-      <label class="label">Model</label>
-      <p class="help">We use <code>claude-opus-4-5</code> by default. Change below if needed.</p>
-      <input class="input" id="model" value="claude-opus-4-5" />
-      <div class="small">Tip: <code>claude-sonnet-4-5</code> is faster + cheaper for testing.</div>
+      <label class="label" for="model">Model (advanced)</label>
+      <p class="help">Leave blank to use the backend default.</p>
+      <input class="input" id="model" placeholder="claude-opus-4-5 or moonshotai/Kimi-K2-Instruct-0905" />
     </div>
 
+    <button class="btn btn-primary" id="save">💾 Save settings</button>
+    <div id="status" class="status" style="display: none;"></div>
+
+    <!-- Danger zone -->
     <div class="section dangerzone">
       <label class="label">Reset agent state</label>
-      <p class="help">Clears the Q-learning table (the agent forgets what it learned).</p>
+      <p class="help">Clears the Q-learning table — the agent forgets what it learned.</p>
       <button class="btn btn-ghost" id="resetQ">Reset Q-table</button>
     </div>
   </div>
 
-  <script src="options.js"></script>
+  <script src="options.js" type="module"></script>
 </body>
 </html>

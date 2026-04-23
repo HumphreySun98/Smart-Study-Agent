@@ -29,6 +29,12 @@ wheels/
 .installed.cfg
 *.egg
 
+# The Chrome extension uses lib/ for vendored JS — DO track it.
+!chrome-extension/lib/
+!chrome-extension/lib/**
+# Do NOT track the extension's build output.
+chrome-extension/dist/
+
 # Virtual environments
 venv/
 env/
