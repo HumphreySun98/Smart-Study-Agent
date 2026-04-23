@@ -17,7 +17,9 @@
 | **Chrome extension** | Your browser — works on any page, PDF, or YouTube video | [Install guide](chrome-extension/) (MV3) — submitted to the Chrome Web Store, **pending review** |
 
 <p align="center">
-  <img src="chrome-extension/screenshots/popup.png" alt="SmartStudy Chrome extension popup" width="320" />
+  <img src="chrome-extension/screenshots/youtube.png" alt="SmartStudy extension running on a YouTube ML course — side panel shows extracted topics and belief state" width="720" />
+  <br />
+  <em>Side panel running on a YouTube ML course — topics auto-extracted from captions, belief state updating in real time.</em>
 </p>
 
 The web app runs on Hugging Face Spaces using free HF Inference Providers (Kimi-K2). The Chrome extension calls the Anthropic API directly from your browser — same agent core, zero backend. For local development, plug in your own Anthropic key to get Claude's higher-quality reasoning.
