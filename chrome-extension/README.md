@@ -120,9 +120,12 @@ Uninstalling the extension wipes all local data.
 
 ---
 
-## Publish to the Chrome Web Store
+## Chrome Web Store
 
-Full guide in [WEB_STORE_SUBMISSION.md](WEB_STORE_SUBMISSION.md). Quick path:
+**Live now** — install in one click:
+[chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik)
+
+Republishing? See [WEB_STORE_SUBMISSION.md](WEB_STORE_SUBMISSION.md). Quick path:
 
 ```bash
 bash package.sh         # builds dist/smartstudy-agent-v0.2.0.zip
@@ -140,7 +143,7 @@ bash package.sh         # builds dist/smartstudy-agent-v0.2.0.zip
 - [x] **YouTube transcript** extraction
 - [x] **Multi-backend**: Anthropic Claude + HF Kimi-K2 router
 - [x] **Web Store deliverables**: privacy policy + submission guide + package script
-- [ ] Ship to the Chrome Web Store (owner action)
+- [x] **Live on the Chrome Web Store** ([install link](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik))
 - [ ] Options-page telemetry opt-in (anonymous usage stats)
 - [ ] Fine-tuned per-topic Q-tables (vs. current global)
 

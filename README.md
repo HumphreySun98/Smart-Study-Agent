@@ -14,7 +14,15 @@
 | | Where it runs | How to try it |
 |---|---|---|
 | **Web app** | Hugging Face Spaces (free Kimi-K2 backend) | [Open in browser](https://huggingface.co/spaces/HumphreySun98/smart-study-agent) |
-| **Chrome extension** | Your browser — works on any page, PDF, or YouTube video | [Install guide](chrome-extension/) (MV3) — submitted to the Chrome Web Store, **pending review** |
+| **Chrome extension** | Your browser — works on any page, PDF, or YouTube video | [**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik) · [Source](chrome-extension/) (MV3) |
+
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik">
+    <img src="webstore.png" alt="SmartStudy Agent live on the Chrome Web Store" width="720" />
+  </a>
+  <br />
+  <em>Live on the Chrome Web Store — click to install.</em>
+</p>
 
 <p align="center">
   <img src="chrome-extension/screenshots/youtube.png" alt="SmartStudy extension running on a YouTube ML course — side panel shows extracted topics and belief state" width="720" />
@@ -174,7 +182,9 @@ python demo_auto.py
 
 ### Chrome extension (run the agent on any web page, PDF, or YouTube video)
 
-The extension has been **submitted to the Chrome Web Store** and is currently **pending review**. Until it goes live, install it unpacked in < 60 seconds:
+**Now live on the Chrome Web Store** — [install in one click](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik).
+
+Prefer to run the source directly? Load it unpacked in < 60 seconds:
 
 ```
 1. chrome://extensions  →  enable Developer mode
