@@ -18,45 +18,33 @@ except ImportError:
 
 
 def _extract_json(text: str):
-    """
-    Robustly extract JSON from an LLM response. Handles:
-      - plain JSON
-      - ```json ... ``` fenced blocks
-      - leading/trailing prose around a JSON object/array
-      - mid-response truncation (auto-closes dangling brackets)
-      - empty or whitespace-only responses (raises a clear error)
-    """
+    """Pull JSON out of an LLM response — handles fences, prose, truncation."""
     import re
 
     if not text or not text.strip():
-        raise ValueError("LLM returned an empty response (possibly rate-limited or content-filtered).")
+        raise ValueError("LLM returned an empty response.")
 
     s = text.strip()
-    # strip markdown fences if present
     s = re.sub(r"^```(?:json)?\s*", "", s)
     s = re.sub(r"\s*```\s*$", "", s)
     s = s.strip()
 
-    # try the whole string as-is
     try:
         return json.loads(s)
     except json.JSONDecodeError:
         pass
 
-    # pick the intended outer delimiter based on which comes first in the text
     idx_brk = s.find("["); idx_brc = s.find("{")
     if idx_brk == -1: outer_open, outer_close = "{", "}"
     elif idx_brc == -1: outer_open, outer_close = "[", "]"
     elif idx_brk < idx_brc: outer_open, outer_close = "[", "]"
     else: outer_open, outer_close = "{", "}"
 
-    # if the outer closer is missing entirely, the response is truncated — repair first
     if s.rfind(outer_close) == -1:
         repaired = _repair_truncated_json(s)
         if repaired is not None:
             return repaired
 
-    # try delimiter match on intended outer type
     start = s.find(outer_open)
     if start != -1:
         end = s.rfind(outer_close)
@@ -66,7 +54,6 @@ def _extract_json(text: str):
             except json.JSONDecodeError:
                 end = s.rfind(outer_close, start, end)
 
-    # try the other delimiter type as a fallback
     alt_open, alt_close = ("{", "}") if outer_open == "[" else ("[", "]")
     start = s.find(alt_open)
     if start != -1:
@@ -77,7 +64,6 @@ def _extract_json(text: str):
             except json.JSONDecodeError:
                 end = s.rfind(alt_close, start, end)
 
-    # final repair attempt
     repaired = _repair_truncated_json(s)
     if repaired is not None:
         return repaired
@@ -88,19 +74,13 @@ def _extract_json(text: str):
 
 
 def _repair_truncated_json(s: str):
-    """
-    Heuristic repair for truncated JSON: balance open braces/brackets,
-    close any unterminated string, drop trailing incomplete elements.
-    Returns parsed JSON or None if repair fails.
-    """
-    # find outer opener
+    """Best-effort repair: balance brackets, close strings, drop trailing junk."""
     first = s.lstrip()[:1]
     if first not in ("{", "["):
         return None
     start = s.find(first)
     tail = s[start:]
 
-    # strip any obvious trailing prose after last reasonable char
     stack = []
     in_str = False; esc = False
     last_valid = 0
@@ -121,21 +101,16 @@ def _repair_truncated_json(s: str):
                 if not stack:
                     last_valid = i + 1
 
-    # attempt a few closing strategies
     candidates = []
     if in_str:
         closing = '"' + "".join("]" if c == "[" else "}" for c in reversed(stack))
     else:
         closing = "".join("]" if c == "[" else "}" for c in reversed(stack))
 
-    # try (1) naive close
     candidates.append(tail + closing)
-    # try (2) cut to last comma inside the outer structure, then close
-    trimmed = tail
-    comma = trimmed.rfind(",")
+    comma = tail.rfind(",")
     if comma != -1:
-        candidates.append(trimmed[:comma] + closing)
-    # try (3) cut to last_valid and close
+        candidates.append(tail[:comma] + closing)
     if last_valid:
         candidates.append(tail[:last_valid])
 
@@ -147,18 +122,22 @@ def _repair_truncated_json(s: str):
     return None
 
 
-# ---- data classes to hold student info, plans, and quiz questions ----
+# --- data classes ---
 
 @dataclass
 class StudentProfile:
-    """Keeps track of what the student knows and doesn't know."""
+    """What the student knows and doesn't know."""
     topics_mastered: list[str] = field(default_factory=list)
     weak_areas: list[str] = field(default_factory=list)
     quiz_history: list[dict] = field(default_factory=list)
 
     def record_quiz(self, topic: str, score: float, missed: list[str]):
-        self.quiz_history.append({"topic": topic, "score": score, "missed": missed})
-        # 70% threshold from Bloom's mastery learning
+        from datetime import datetime
+        self.quiz_history.append({
+            "topic": topic, "score": score, "missed": missed,
+            "timestamp": datetime.now().isoformat(),
+        })
+        # Bloom's 70% mastery threshold
         if score >= 0.7:
             if topic not in self.topics_mastered:
                 self.topics_mastered.append(topic)
@@ -188,22 +167,18 @@ class StudyPlan:
 class QuizQuestion:
     topic: str
     question: str
-    choices: list[str]        # ["A) ...", "B) ...", ...]
-    correct_answer: str       # "A", "B", "C", or "D"
+    choices: list[str]
+    correct_answer: str
     explanation: str
 
 
-# ---- the main agent class ----
+# --- main agent ---
 
 class SmartStudyAgent:
-    """
-    5-phase adaptive learning agent:
-    observe -> plan -> act -> evaluate -> adapt
-    """
+    """OPEAA agent: observe → plan → act → evaluate → adapt."""
 
     def __init__(self, api_key: Optional[str] = None, mock: bool = False,
                  policy: Optional[str] = None):
-        # backend selection: mock > anthropic > hf > mock fallback
         if mock:
             self.client = MockAnthropic()
             self.model = "mock"
@@ -212,8 +187,13 @@ class SmartStudyAgent:
                 api_key=api_key or os.environ.get("ANTHROPIC_API_KEY")
             )
             self.model = "claude-opus-4-6"
+        elif os.environ.get("SMARTSTUDY_LLM_BASE_URL"):
+            # any OpenAI-compatible endpoint: Ollama, LM Studio, vLLM, DeepSeek...
+            from hf_client import from_env
+            self.client = from_env()
+            self.model = self.client.model
         elif os.environ.get("HF_TOKEN"):
-            # free HF Inference fallback (e.g. on Hugging Face Spaces)
+            # free HF Inference fallback for Spaces
             from hf_client import HFAnthropicAdapter
             self.client = HFAnthropicAdapter()
             self.model = "moonshotai/Kimi-K2-Instruct-0905"
@@ -222,16 +202,13 @@ class SmartStudyAgent:
             self.model = "mock"
         self.profile = StudentProfile()
 
-        # Policy choice: "qlearning" (default) | "bandit" | "rule_based".
-        # Bandit added in response to feedback: if state transitions are
-        # small, contextual bandits are more sample-efficient than full RL.
+        # qlearning | bandit | rule_based
         self.policy_name = (
             policy or os.environ.get("SMARTSTUDY_POLICY") or "qlearning"
         ).lower()
         self._topic_attempts: dict[str, int] = {}
 
     # --- Phase 1: OBSERVE ---
-    # reads lecture content and pulls out the main topics
 
     def observe(self, content: str) -> dict:
         response = self.client.messages.create(
@@ -263,7 +240,6 @@ class SmartStudyAgent:
         return _extract_json(text)
 
     # --- Phase 2: PLAN ---
-    # builds a study plan based on what the student already knows
 
     def plan(self, observed: dict) -> StudyPlan:
         profile_text = self.profile.summary()
@@ -315,7 +291,6 @@ class SmartStudyAgent:
         )
 
     # --- Phase 3: ACT ---
-    # generates MCQ quiz questions for a specific topic
 
     def act(self, topic: str, topic_description: str, n: int = 3) -> list[QuizQuestion]:
         example = (
@@ -373,7 +348,6 @@ class SmartStudyAgent:
         ]
 
     # --- Phase 4: EVALUATE ---
-    # checks answers, calculates score, gets feedback from Claude
 
     def evaluate(
         self, questions: list[QuizQuestion], answers: list[str]
@@ -391,7 +365,6 @@ class SmartStudyAgent:
 
         score = len(correct_indices) / len(questions) if questions else 0.0
 
-        # build a summary of what they got wrong so Claude can give good feedback
         wrong_details = "\n".join(
             f"Q{i+1}: {questions[i].question} — student said {answers[i]}, "
             f"correct is {questions[i].correct_answer}. {questions[i].explanation}"
@@ -425,10 +398,9 @@ class SmartStudyAgent:
         }
 
     # --- Phase 5: ADAPT ---
-    # updates the student profile, uses RL policy for action, then gets LLM recommendation
 
     def adapt(self, topic: str, evaluation: dict) -> dict:
-        # get the previous score for this topic (for RL update)
+        # last score on this topic — used as prev_state for the RL update
         prev_score = 0.0
         for h in reversed(self.profile.quiz_history):
             if h.get("topic") == topic:
@@ -441,7 +413,6 @@ class SmartStudyAgent:
             missed=evaluation["missed_concepts"],
         )
 
-        # --- Policy decides the action ---
         new_score = evaluation["score"]
         self._topic_attempts[topic] = self._topic_attempts.get(topic, 0) + 1
 
@@ -471,7 +442,7 @@ class SmartStudyAgent:
             policy.update(prev_score, rl_action, new_score)
             policy_label = "qlearning"
 
-        # --- LLM generates the recommendation text (but action comes from RL) ---
+        # action comes from the policy; LLM only writes the recommendation text
         response = self.client.messages.create(
             model=self.model,
             max_tokens=512,
@@ -517,10 +488,10 @@ class SmartStudyAgent:
         result["rl_policy_used"] = True
         return result
 
-    # --- helper: run all phases in sequence ---
+    # --- run all 5 phases in one call ---
 
     def run_session(self, content: str, on_event=None):
-        """Run the full OPEAA loop on some lecture content."""
+        """Run the full OPEAA loop end-to-end on some lecture content."""
         def emit(phase, data):
             if on_event:
                 on_event(phase, data)
