@@ -1,13 +1,18 @@
 # SmartStudy Agent
 
-> An adaptive AI study agent powered by Claude — observes lecture content, plans personalized study paths, generates quizzes, evaluates answers, and adapts in real time.
+> The AI study agent that **learns how you learn** — a reinforcement-learning policy decides *what* you study next, an FSRS memory model decides *when* you review it, and an LLM generates the quizzes in between. In your browser, in your terminal, or inside Claude via MCP.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Claude API](https://img.shields.io/badge/Claude-opus--4--6-purple.svg)](https://www.anthropic.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red.svg)](https://streamlit.io/)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension_(MV3)-4A90E2.svg)](chrome-extension/)
+[![FSRS](https://img.shields.io/badge/Scheduler-FSRS-orange.svg)](https://github.com/open-spaced-repetition/py-fsrs)
+[![Anki Export](https://img.shields.io/badge/Anki-.apkg_export-29B6F6.svg)](anki_export.py)
+[![MCP](https://img.shields.io/badge/MCP-server-black.svg)](mcp_server.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Hugging Face Space](https://img.shields.io/badge/🤗_Live_Demo-Hugging_Face-yellow.svg)](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
+
+**[English](#-live--two-ways-to-use-it)** · **[中文简介](#-中文简介)**
 
 ## 🌐 Live — Two Ways to Use It
 
@@ -45,8 +50,23 @@ Traditional study tools are static. They show you the same content regardless of
 | Generic study materials | Topics extracted and prioritized per student |
 | No feedback on weak areas | Quiz answers update a persistent belief state |
 | Same recommendations for everyone | Q-learning policy (or Contextual Bandit) adapts per student trajectory |
-| Forgetting without practice | SM-2 spaced repetition scheduler |
+| Forgetting without practice | **FSRS** spaced repetition — the same modern memory model family as Anki (SM-2 fallback) |
 | Out-of-order topics | Topological sort over a concept dependency graph |
+| Locked into one app | **Anki .apkg export**, **MCP server** for Claude, Chrome extension, web app |
+
+### How it compares
+
+| | SmartStudy | DeepTutor | OpenTutor | Anki |
+|---|---|---|---|---|
+| Runs where you read (browser extension) | ✅ Chrome Web Store | ❌ web workspace | ❌ self-hosted app | ❌ |
+| RL policy decides next action | ✅ Q-learning + LinUCB, honest benchmark | ❌ | ❌ | ❌ |
+| Spaced repetition | ✅ FSRS | ❌ | ✅ FSRS | ✅ FSRS |
+| Quiz generation from any material | ✅ | ✅ | ✅ | ❌ |
+| Anki export | ✅ .apkg | ❌ | ❌ | — |
+| Drive it from Claude (MCP) | ✅ | ❌ | ❌ | via 3rd-party |
+| Footprint | ~3k LOC, SQLite, runs on free tier | Full platform (FastAPI + Next.js) | FastAPI + Next.js | Desktop app |
+
+SmartStudy is deliberately **not** an all-in-one learning platform — it's the lightweight agent core: observe → plan → quiz → evaluate → adapt, with real learning-science scheduling. If you want a full workspace, [DeepTutor](https://github.com/HKUDS/DeepTutor) is excellent. If you want the decision loop embedded where you already study — this repo.
 
 ---
 
@@ -85,8 +105,9 @@ SmartStudy implements the **OPEAA loop** — a five-phase adaptive agent cycle:
                                   │
                 ┌─────────────────┼─────────────────┐
                 ▼                 ▼                 ▼
-          Spaced Repetition  Concept Graph    Streamlit UI
-            (SM-2)            (DAG topo sort)   (8 pages)
+          Spaced Repetition  Concept Graph    Interfaces
+            (FSRS)           (DAG topo sort)  Streamlit · Chrome ext
+                                              MCP server · Agent Skill
 ```
 
 The agent is modeled as a **POMDP** (partially observable Markov decision process):
@@ -108,10 +129,16 @@ The agent is modeled as a **POMDP** (partially observable Markov decision proces
 - **Two adaptive policies** — heuristic (Bloom's 70% mastery threshold) and tabular Q-learning
 
 ### Knowledge & Memory
-- **Concept dependency graph** — Kahn's algorithm topological sort over a topic prerequisite DAG
-- **SM-2 spaced repetition** — schedules reviews based on forgetting curves
-- **Persistent JSON storage** — student profiles survive across sessions
+- **Concept dependency graph** — Kahn's algorithm topological sort over a topic prerequisite DAG, rendered as an **interactive draggable graph** (pyvis)
+- **FSRS spaced repetition** — per-topic memory model (stability · difficulty · recall probability) via [py-fsrs](https://github.com/open-spaced-repetition/py-fsrs); automatic SM-2 fallback
+- **Anki export** — one click turns your generated quiz bank into a styled `.apkg` deck
+- **Persistent SQLite storage** — student profiles survive across sessions
 - **Multi-student support** with peer comparison dashboard
+
+### Integrations
+- **MCP server** — Claude Desktop / Claude Code can query your review queue, generate quizzes, record results (training the RL policy), and export decks
+- **Claude Agent Skill** — `skills/smartstudy/` turns any Claude Code session into an adaptive study coach
+- **Multi-provider LLM** — Claude, HF Inference, or **any OpenAI-compatible endpoint** (Ollama, LM Studio, vLLM, DeepSeek) — fully local studying is supported
 
 ### Input & Evaluation
 - **7 input formats** — PDF, TXT, MD, DOCX, PPTX, VTT, SRT
@@ -134,11 +161,12 @@ cd Smart-Study-Agent
 pip install -r requirements.txt
 ```
 
-The agent supports three LLM backends and picks one automatically:
+The agent supports four LLM backends and picks one automatically:
 
 | Backend | Env variable | Cost | Quality |
 |---------|--------------|------|---------|
 | **Anthropic Claude** | `ANTHROPIC_API_KEY` | Pay as you go | ⭐⭐⭐⭐⭐ Best — supports adaptive thinking |
+| **Any OpenAI-compatible endpoint** (Ollama, LM Studio, vLLM, DeepSeek…) | `SMARTSTUDY_LLM_BASE_URL` + `SMARTSTUDY_LLM_MODEL` | Free if local | ⭐⭐⭐–⭐⭐⭐⭐ your choice |
 | **HF Inference (Kimi-K2)** | `HF_TOKEN` | **Free** | ⭐⭐⭐⭐ Great |
 | **Mock** | _(no env vars)_ | Free | ⭐⭐ Canned responses for offline demos |
 
@@ -146,10 +174,19 @@ The agent supports three LLM backends and picks one automatically:
 # Option 1 — Claude (premium quality)
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Option 2 — Hugging Face (completely free)
+# Option 2 — fully local & private with Ollama
+export SMARTSTUDY_LLM_BASE_URL=ollama        # shortcut for http://localhost:11434/v1
+export SMARTSTUDY_LLM_MODEL=llama3.1
+
+# ...or any other OpenAI-compatible server
+export SMARTSTUDY_LLM_BASE_URL=https://api.deepseek.com/v1
+export SMARTSTUDY_LLM_MODEL=deepseek-chat
+export SMARTSTUDY_LLM_API_KEY=sk-...
+
+# Option 3 — Hugging Face (completely free)
 export HF_TOKEN=hf_...
 
-# Option 3 — Mock mode (no setup)
+# Option 4 — Mock mode (no setup)
 # just run the agent without any keys
 ```
 
@@ -194,6 +231,33 @@ Prefer to run the source directly? Load it unpacked in < 60 seconds:
 5. Open any article / PDF / YouTube page → "Observe this page"
 ```
 Full install + architecture notes in [chrome-extension/README.md](chrome-extension/).
+
+### MCP server (drive SmartStudy from Claude)
+
+```bash
+pip install "mcp[cli]"
+
+# Claude Code
+claude mcp add smartstudy -- python /path/to/mcp_server.py
+
+# Claude Desktop — add to claude_desktop_config.json:
+# {"mcpServers": {"smartstudy": {"command": "python",
+#                                "args": ["/path/to/mcp_server.py"]}}}
+```
+
+Then just ask Claude: *"What's due for review today?"*, *"Quiz me on backpropagation and record my score"*, *"Export my question bank to Anki"*. Every recorded result trains the Q-learning policy and reschedules the topic under FSRS.
+
+### Claude Agent Skill (adaptive study coach in your terminal)
+
+```bash
+cp -r skills/smartstudy ~/.claude/skills/
+```
+
+Open Claude Code anywhere and say "study this PDF with me" — the skill runs the full OPEAA loop, one question at a time, with real FSRS scheduling underneath.
+
+### Anki export
+
+Every generated quiz is saved to a per-student question bank. Export it from the **🃏 Anki Export** page (or `python -c "from anki_export import export_student_deck; export_student_deck('alice')"`) and import the `.apkg` into Anki — cards are tagged by topic and styled.
 
 ---
 
@@ -266,8 +330,9 @@ print(f"Adaptive beats baseline by {results['improvement_pct']:.1f}%")
 |------|---------|
 | 🏠 **Dashboard** | Mastered topics, weak areas, due reviews, and key metrics |
 | 📖 **Study Session** | Upload a lecture and run the full OPEAA loop step-by-step |
-| 🔁 **Spaced Review** | SM-2 scheduler shows what to review today |
-| 🧠 **Concept Graph** | Visualizes the topic prerequisite DAG with mastered topics highlighted |
+| 🔁 **Spaced Review** | FSRS memory state per topic — recall %, stability, next due date |
+| 🃏 **Anki Export** | Build a styled `.apkg` deck from your generated question bank |
+| 🧠 **Concept Graph** | Interactive draggable prerequisite DAG — mastered/weak topics color-coded |
 | 📊 **Progress History** | Personal score trajectory across all attempts |
 | 👥 **Peer Comparison** | Multi-student leaderboard ranked by average score |
 | 🎯 **RL Policy** | Inspect the Q-table and train it on simulated episodes |
@@ -287,12 +352,15 @@ smartstudy-agent/
 ├── demo.py                 # Interactive terminal demo
 ├── demo_auto.py            # Automated demo (no input needed)
 │
-├── storage.py              # SQLite persistent storage (auto-migrates from JSON)
+├── storage.py              # SQLite persistent storage (+ question bank)
 ├── concept_graph.py        # Topic prerequisite DAG with cross-course linking
 ├── pilot_study.py          # Pilot study data collection and analysis
 ├── rl_policy.py            # Tabular Q-learning policy
 ├── bandit_policy.py        # Contextual Bandit (LinUCB) — alternative to RL
-├── spaced_repetition.py    # SM-2 review scheduler
+├── spaced_repetition.py    # FSRS review scheduler (SM-2 fallback)
+├── anki_export.py          # Question bank → Anki .apkg deck (genanki)
+├── mcp_server.py           # MCP server — drive the agent from Claude
+├── skills/smartstudy/      # Claude Agent Skill — study coach for Claude Code
 ├── multi_format.py         # PDF/TXT/MD/DOCX/PPTX/VTT/SRT loader
 ├── evaluation.py           # Adaptive vs baseline simulation
 │
@@ -326,11 +394,13 @@ smartstudy-agent/
 
 | Layer | Technology |
 |-------|-----------|
-| LLM | Anthropic Claude (`claude-opus-4-6` with adaptive thinking) |
+| LLM | Claude (adaptive thinking) · any OpenAI-compatible endpoint · HF Inference |
 | Web UI | Streamlit |
-| RL | Tabular Q-learning over discretized score buckets |
-| Knowledge Graph | NetworkX + Kahn's algorithm |
-| Spaced Repetition | SM-2 algorithm |
+| RL | Tabular Q-learning over discretized score buckets + LinUCB bandit |
+| Knowledge Graph | NetworkX + Kahn's algorithm + pyvis (interactive) |
+| Spaced Repetition | FSRS via [py-fsrs](https://github.com/open-spaced-repetition/py-fsrs) (SM-2 fallback) |
+| Flashcards | genanki → Anki `.apkg` |
+| Agent Interop | MCP server (FastMCP) + Claude Agent Skill |
 | Storage | SQLite (auto-migrates from JSON, scales to >1k students) |
 | Document Parsing | pypdf, python-docx, python-pptx |
 | Terminal UI | rich |
@@ -430,8 +500,38 @@ Following the evaluation feedback, we replaced the earlier noise-only simulator 
 - [x] Contextual Bandit (LinUCB) policy as an alternative to full RL
 - [x] 4-way evaluation against Rule-based baseline + Simulated Student Model (per professor feedback)
 - [x] **Chrome extension (MV3)** — same OPEAA loop on any web page, client-side Q-learning
-- [ ] Migrate extension to `chrome.sidePanel` for persistent belief-state display
-- [ ] Chrome Web Store listing
+- [x] Migrate extension to `chrome.sidePanel` for persistent belief-state display
+- [x] Chrome Web Store listing — [live](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik)
+- [x] **FSRS scheduler** (py-fsrs) replacing SM-2 — per-topic memory state with recall probability
+- [x] **Anki .apkg export** from the generated question bank
+- [x] **MCP server** — use SmartStudy from Claude Desktop / Claude Code
+- [x] **Claude Agent Skill** — adaptive study coach in any Claude Code session
+- [x] **Multi-provider LLM** — Ollama / LM Studio / vLLM / DeepSeek via OpenAI-compatible API
+- [x] Interactive concept graph (pyvis)
+- [ ] FSRS parameter optimization from real review logs
+- [ ] Import existing Anki decks as topics
+- [ ] Bayesian Knowledge Tracing as a third mastery model
+
+---
+
+## 🇨🇳 中文简介
+
+**SmartStudy Agent — 会学习"你怎么学"的 AI 学习智能体。**
+
+和普通 AI 学习工具的区别:决定"下一步学什么"的不是 LLM,而是一个**强化学习策略**(Q-learning / LinUCB 老虎机,附带诚实的基准对比);决定"什么时候复习"的是 **FSRS 记忆模型**(与新版 Anki 同源算法);LLM 只负责出题和讲解。
+
+- 🌐 **在线体验**:[Hugging Face Space](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)(免费,无需注册)
+- 🧩 **Chrome 插件**:[已上架 Chrome 商店](https://chromewebstore.google.com/detail/edbjkpfjonahanfkamlcbobmnplihmik),在任意网页 / PDF / YouTube 上直接学
+- 🃏 **Anki 导出**:生成的题库一键导出 `.apkg`
+- 🤖 **MCP server**:在 Claude Desktop / Claude Code 里直接问"今天该复习什么"
+- 🏠 **完全本地**:支持 Ollama / LM Studio 等 OpenAI 兼容端点,数据不出本机
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py        # 零配置离线 Mock 模式即可体验
+```
+
+觉得有用请点个 ⭐!
 
 ---
 
