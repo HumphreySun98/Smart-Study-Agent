@@ -11,3 +11,6 @@ matplotlib>=3.7.0
 networkx>=3.0
 python-docx>=1.0.0
 python-pptx>=0.6.0
+fsrs>=6.0.0
+genanki>=0.13.0
+pyvis>=0.3.2

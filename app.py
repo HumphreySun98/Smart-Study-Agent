@@ -1,11 +1,6 @@
 # app.py
-# SmartStudy Agent - Web UI built with Streamlit
-# Includes all features: persistent profiles, multi-student, history,
-# spaced repetition, concept graph, RL policy, multi-format input,
-# baseline evaluation, peer dashboard
-#
+# Streamlit web UI for the SmartStudy Agent.
 # Run:  streamlit run app.py
-#
 # Haofei Sun - CSE 5360
 
 import os
@@ -25,7 +20,7 @@ import matplotlib.pyplot as plt
 from smartstudy_agent import SmartStudyAgent, StudentProfile
 import storage
 from concept_graph import ConceptGraph
-from spaced_repetition import get_review_queue
+from spaced_repetition import get_review_queue, get_full_schedule, ALGORITHM
 from rl_policy import QLearningPolicy
 from multi_format import load_any
 from evaluation import compare
@@ -44,38 +39,44 @@ st.set_page_config(
 # ---- premium visual theme (CSS injection) ----
 
 def inject_premium_theme():
-    """Injects a modern gradient/glass theme on top of Streamlit."""
+    """Glass / gradient theme on top of the default Streamlit CSS."""
     st.markdown(
         """
         <style>
         /* ===== Fonts ===== */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
 
-        html, body, [class*="css"], .stApp, [data-testid="stSidebar"] {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        html, body, [class*="css"], .stApp, [data-testid="stSidebar"], .stMarkdown {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
-        code, pre { font-family: 'JetBrains Mono', monospace !important; }
+        code, pre { font-family: 'Fira Code', monospace !important; }
 
-        /* ===== Background: deep gradient + subtle radial accent ===== */
+        /* ===== Animated Background ===== */
         .stApp {
-            background:
-                radial-gradient(1200px 600px at 85% -10%, rgba(74,144,226,0.18), transparent 60%),
-                radial-gradient(900px 500px at -10% 110%, rgba(230,126,34,0.12), transparent 55%),
-                linear-gradient(180deg, #0B1020 0%, #0F172A 55%, #0B1020 100%) !important;
-            color: #E6EDF6 !important;
+            background: linear-gradient(-45deg, #090B10, #131A2A, #0B1020, #181124) !important;
+            background-size: 400% 400% !important;
+            animation: gradientBG 15s ease infinite !important;
+            color: #E2E8F0 !important;
+        }
+        
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         /* ===== Sidebar: glassmorphism ===== */
         [data-testid="stSidebar"] > div:first-child {
-            background: rgba(15, 23, 42, 0.7) !important;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border-right: 1px solid rgba(74,144,226,0.15);
+            background: rgba(13, 17, 28, 0.6) !important;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 5px 0 30px rgba(0, 0, 0, 0.3);
         }
         [data-testid="stSidebar"] h1 {
-            font-size: 26px !important;
+            font-size: 28px !important;
             font-weight: 800 !important;
-            background: linear-gradient(90deg, #6FB3FF, #A78BFA);
+            background: linear-gradient(135deg, #00F0FF 0%, #5773FF 50%, #FF007A 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -84,88 +85,196 @@ def inject_premium_theme():
 
         /* ===== Hero welcome title ===== */
         .hero-title {
-            font-size: 56px !important;
+            font-size: 64px !important;
             font-weight: 800 !important;
-            line-height: 1.05 !important;
-            letter-spacing: -1.5px;
-            background: linear-gradient(120deg, #A78BFA 0%, #6FB3FF 45%, #60E1C6 100%);
+            line-height: 1.1 !important;
+            letter-spacing: -2px;
+            background: linear-gradient(to right, #fff, #a5b4fc, #818cf8);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin: 0.1em 0 0.2em 0;
-            animation: fadeInUp 0.6s ease-out;
+            margin: 0.1em 0 0.3em 0;
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .hero-sub {
-            font-size: 18px;
-            color: #93A4C3;
-            max-width: 780px;
-            line-height: 1.55;
-            margin-bottom: 2rem;
-            animation: fadeInUp 0.8s ease-out;
+            font-size: 20px;
+            color: #94A3B8;
+            max-width: 800px;
+            line-height: 1.6;
+            margin-bottom: 2.5rem;
+            animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         /* ===== Feature cards ===== */
         .ss-card-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin: 12px 0 8px 0;
+            gap: 20px;
+            margin: 16px 0 12px 0;
         }
-        @media (max-width: 900px) { .ss-card-row { grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 520px) { .ss-card-row { grid-template-columns: 1fr; } }
+        @media (max-width: 1024px) { .ss-card-row { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 600px) { .ss-card-row { grid-template-columns: 1fr; } }
         .ss-card {
-            padding: 18px;
-            border-radius: 16px;
-            background: linear-gradient(145deg, rgba(74,144,226,0.08), rgba(167,139,250,0.05));
-            border: 1px solid rgba(111,179,255,0.18);
-            transition: transform .25s ease, box-shadow .25s ease, border .25s ease;
-            animation: fadeInUp 0.9s ease-out;
+            padding: 24px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: fadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
         }
+        .ss-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .ss-card:hover::before { opacity: 1; }
         .ss-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(74,144,226,0.18);
-            border-color: rgba(111,179,255,0.35);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            border-color: rgba(129, 140, 248, 0.4);
+            background: rgba(255, 255, 255, 0.05);
         }
-        .ss-card .icon { font-size: 26px; margin-bottom: 8px; }
-        .ss-card .title { font-weight: 700; color: #E6EDF6; font-size: 15px; }
-        .ss-card .desc  { color: #93A4C3; font-size: 13px; margin-top: 4px; line-height: 1.45; }
+        .ss-card .icon { font-size: 32px; margin-bottom: 12px; display: inline-block; }
+        .ss-card:hover .icon { animation: bounce 1s ease infinite; }
+        .ss-card .title { font-weight: 700; color: #F1F5F9; font-size: 17px; margin-bottom: 6px; }
+        .ss-card .desc  { color: #94A3B8; font-size: 14px; line-height: 1.5; }
 
         /* ===== Metric cards ===== */
         div[data-testid="stMetric"] {
-            background: linear-gradient(145deg, rgba(74,144,226,0.10), rgba(167,139,250,0.06));
-            padding: 16px 18px;
-            border-radius: 14px;
-            border: 1px solid rgba(111,179,255,0.18);
-            transition: transform .25s ease, box-shadow .25s ease;
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            padding: 20px 24px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        div[data-testid="stMetric"]::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.05), transparent);
+            transform: skewX(-20deg);
+            transition: all 0.5s ease;
+        }
+        div[data-testid="stMetric"]:hover::after {
+            left: 150%;
         }
         div[data-testid="stMetric"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 22px rgba(74,144,226,0.16);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(99, 102, 241, 0.3);
         }
         div[data-testid="stMetricValue"] {
-            font-size: 28px !important;
+            font-size: 36px !important;
             font-weight: 800 !important;
-            background: linear-gradient(90deg, #6FB3FF, #A78BFA);
+            background: linear-gradient(135deg, #818CF8 0%, #C084FC 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            letter-spacing: -1px;
         }
-        div[data-testid="stMetricLabel"] { color: #93A4C3 !important; font-weight: 500; }
+        div[data-testid="stMetricLabel"] { color: #94A3B8 !important; font-weight: 600; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
 
         /* ===== Buttons ===== */
         .stButton > button {
-            background: linear-gradient(135deg, #4A90E2 0%, #6B4AE2 100%) !important;
+            background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%) !important;
             color: white !important;
             border: none !important;
             border-radius: 12px !important;
             font-weight: 600 !important;
-            padding: 0.55rem 1.2rem !important;
-            box-shadow: 0 4px 14px rgba(74,144,226,0.25);
-            transition: transform .2s ease, box-shadow .2s ease;
+            font-size: 15px !important;
+            padding: 0.6rem 1.5rem !important;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
         }
+        .stButton > button::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #4F46E5 0%, #9333EA 100%);
+            z-index: -1;
+            transition: opacity 0.3s ease;
+            opacity: 0;
+        }
+        .stButton > button:hover::before { opacity: 1; }
         .stButton > button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(74,144,226,0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+        }
+        .stButton > button:active {
+            transform: translateY(1px);
+        }
+
+        /* ===== Inputs & Selectboxes ===== */
+        .stTextInput > div > div > input, .stSelectbox > div > div {
+            background: rgba(15, 23, 42, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 10px !important;
+            color: #F8FAFC !important;
+            transition: all 0.3s ease;
+        }
+        .stTextInput > div > div > input:focus, .stSelectbox > div > div:focus-within {
+            border-color: #818CF8 !important;
+            box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
+        }
+
+        /* ===== Dataframes / Tables ===== */
+        [data-testid="stDataFrame"] {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* ===== Expander ===== */
+        .streamlit-expanderHeader {
+            background: rgba(30, 41, 59, 0.4) !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease;
+        }
+        .streamlit-expanderHeader:hover {
+            background: rgba(30, 41, 59, 0.6) !important;
+            border-color: rgba(129, 140, 248, 0.3) !important;
+        }
+
+        /* ===== Tabs ===== */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+            background: transparent;
+            padding-bottom: 5px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background: rgba(30, 41, 59, 0.3);
+            border-radius: 12px;
+            border: 1px solid transparent;
+            padding: 10px 20px;
+            color: #94A3B8;
+            transition: all 0.3s ease;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(30, 41, 59, 0.6);
+            color: #F1F5F9;
+        }
+        .stTabs [aria-selected="true"] {
+            background: rgba(99, 102, 241, 0.15) !important;
+            border-color: rgba(129, 140, 248, 0.5) !important;
+            color: #818CF8 !important;
         }
 
         /* ===== Live backend badge ===== */
@@ -173,45 +282,52 @@ def inject_premium_theme():
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 14px;
+            padding: 8px 16px;
             border-radius: 999px;
-            background: linear-gradient(135deg, rgba(46,204,113,0.18), rgba(74,144,226,0.18));
-            border: 1px solid rgba(46,204,113,0.35);
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
             font-weight: 600;
             font-size: 13px;
-            color: #B7F0D8;
+            color: #34D399;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
         }
         .backend-badge.mock {
-            background: rgba(245,158,11,0.12);
-            border-color: rgba(245,158,11,0.35);
-            color: #FDE68A;
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.3);
+            color: #FBBF24;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.1);
         }
         .backend-badge .dot {
             width: 8px; height: 8px; border-radius: 50%;
-            background: #2ECC71;
-            box-shadow: 0 0 0 0 rgba(46,204,113,0.6);
-            animation: pulse 1.6s infinite;
+            background: #10B981;
+            box-shadow: 0 0 8px #10B981;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        .backend-badge.mock .dot { background: #F59E0B; box-shadow: 0 0 0 0 rgba(245,158,11,0.5); }
+        .backend-badge.mock .dot { background: #F59E0B; box-shadow: 0 0 8px #F59E0B; }
 
         @keyframes pulse {
-            0%   { box-shadow: 0 0 0 0 rgba(46,204,113,0.6); }
-            70%  { box-shadow: 0 0 0 8px rgba(46,204,113,0); }
-            100% { box-shadow: 0 0 0 0 rgba(46,204,113,0); }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .5; transform: scale(1.2); }
         }
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(8px); }
+            from { opacity: 0; transform: translateY(20px); }
             to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
         }
 
         /* ===== Subtle tweaks ===== */
-        h1, h2, h3 { letter-spacing: -0.3px; }
-        .stTabs [data-baseweb="tab-list"] { gap: 6px; }
-        .stTabs [data-baseweb="tab"] {
-            background: rgba(74,144,226,0.08);
-            border-radius: 10px 10px 0 0;
-        }
-        hr { border-color: rgba(111,179,255,0.12) !important; }
+        h1, h2, h3 { letter-spacing: -0.5px; font-weight: 700; }
+        hr { border-color: rgba(255, 255, 255, 0.08) !important; margin: 2rem 0; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
         </style>
         """,
         unsafe_allow_html=True,
@@ -234,9 +350,13 @@ def init_state():
         "evaluation": None,
         "adaptation": None,
         "lecture_text": "",
-        "use_mock": not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("HF_TOKEN")),
+        "use_mock": not (os.environ.get("ANTHROPIC_API_KEY")
+                         or os.environ.get("SMARTSTUDY_LLM_BASE_URL")
+                         or os.environ.get("HF_TOKEN")),
         "backend_label": (
             "Claude API" if os.environ.get("ANTHROPIC_API_KEY")
+            else f"Custom LLM ({os.environ.get('SMARTSTUDY_LLM_MODEL', 'OpenAI-compatible')})"
+            if os.environ.get("SMARTSTUDY_LLM_BASE_URL")
             else "HF Inference (Kimi-K2)" if os.environ.get("HF_TOKEN")
             else "Mock"
         ),
@@ -265,7 +385,7 @@ def get_agent():
 
 
 def persist_profile():
-    """Write the in-memory profile back to disk."""
+    """Flush the in-memory profile to SQLite."""
     if not st.session_state.current_student or st.session_state.agent is None:
         return
     record = storage.load_student(st.session_state.current_student)
@@ -329,6 +449,7 @@ with st.sidebar:
         "🏠 Dashboard",
         "📖 Study Session",
         "🔁 Spaced Review",
+        "🃏 Anki Export",
         "🧠 Concept Graph",
         "📊 Progress History",
         "👥 Peer Comparison",
@@ -389,9 +510,7 @@ if not st.session_state.current_student:
     st.stop()
 
 
-# ============================================================
-# PAGE: Dashboard
-# ============================================================
+# --- PAGE: Dashboard ---
 
 if page == "🏠 Dashboard":
     st.title(f"Welcome back, {st.session_state.current_student}")
@@ -440,9 +559,7 @@ if page == "🏠 Dashboard":
         st.caption("Nothing due for review today.")
 
 
-# ============================================================
-# PAGE: Study Session
-# ============================================================
+# --- PAGE: Study Session ---
 
 elif page == "📖 Study Session":
     st.title("📖 Study Session")
@@ -531,6 +648,13 @@ elif page == "📖 Study Session":
                 desc = st.session_state.observed["descriptions"].get(topic, "")
                 st.session_state.questions = agent.act(topic, desc, n=3)
                 st.session_state.answers = None
+                # feed the question bank (powers the Anki export page)
+                storage.add_questions(st.session_state.current_student, [
+                    {"topic": q.topic, "question": q.question,
+                     "choices": q.choices, "correct_answer": q.correct_answer,
+                     "explanation": q.explanation}
+                    for q in st.session_state.questions
+                ])
 
     if st.session_state.questions:
         st.subheader("📝 Phase 3: Quiz")
@@ -592,31 +716,96 @@ elif page == "📖 Study Session":
                 f"{ad.get('recommendation', '')}")
 
 
-# ============================================================
-# PAGE: Spaced Review
-# ============================================================
+# --- PAGE: Spaced Review ---
 
 elif page == "🔁 Spaced Review":
     st.title("🔁 Spaced Repetition Schedule")
-    st.caption("Topics due for review based on SM-2 algorithm")
+    st.caption(f"Scheduling algorithm: **{ALGORITHM}**"
+               + (" — memory-model-based scheduler (same family as modern Anki)"
+                  if ALGORITHM == "FSRS" else ""))
 
     record = storage.load_student(st.session_state.current_student)
     queue = get_review_queue(record["quiz_history"])
 
+    st.subheader("Due Now")
     if not queue:
         st.info("Nothing due for review yet. Take some quizzes first!")
     else:
         for item in queue:
             urgency = "🔴" if item["days_overdue"] > 3 else "🟡" if item["days_overdue"] > 0 else "🟢"
+            extra = (f" · recall probability {item['retrievability']:.0%}"
+                     if "retrievability" in item else "")
             st.markdown(
                 f"{urgency} **{item['topic']}** — last score {item['last_score']:.0%}, "
-                f"{item['days_overdue']} day(s) overdue · last seen {item['last_seen']}"
+                f"{item['days_overdue']} day(s) overdue · last seen {item['last_seen']}{extra}"
             )
 
+    # FSRS full memory-state table
+    schedule = get_full_schedule(record["quiz_history"])
+    if schedule:
+        st.divider()
+        st.subheader("Memory State (all studied topics)")
+        st.caption("FSRS models each topic's memory: stability = how long it lasts, "
+                   "retrievability = recall probability right now.")
+        sched_df = pd.DataFrame([{
+            "Topic": r["topic"],
+            "Recall %": f"{r['retrievability']:.0%}",
+            "Stability (days)": r["stability"],
+            "Difficulty": r["difficulty"],
+            "Next Due": r["due"].astimezone().strftime("%Y-%m-%d"),
+            "Last Seen": r["last_seen"],
+        } for r in schedule])
+        st.dataframe(sched_df, use_container_width=True, hide_index=True)
 
-# ============================================================
-# PAGE: Concept Graph
-# ============================================================
+
+# --- PAGE: Anki Export ---
+
+elif page == "🃏 Anki Export":
+    st.title("🃏 Export to Anki")
+    st.caption("Every quiz the agent generates is saved to your question bank. "
+               "Export it as an .apkg deck and review it in Anki (FSRS-ready).")
+
+    bank = storage.get_question_bank(st.session_state.current_student)
+
+    if not bank:
+        st.info("Question bank is empty — generate some quizzes in 📖 Study Session first.")
+    else:
+        by_topic = {}
+        for q in bank:
+            by_topic.setdefault(q["topic"], []).append(q)
+
+        col1, col2 = st.columns(2)
+        col1.metric("Cards in Bank", len(bank))
+        col2.metric("Topics Covered", len(by_topic))
+
+        st.divider()
+        pick_topics = st.multiselect("Topics to export (default: all):",
+                                     sorted(by_topic), default=sorted(by_topic))
+        selected = [q for t in pick_topics for q in by_topic[t]]
+
+        try:
+            from anki_export import build_deck
+            if selected and st.button("Build .apkg Deck", use_container_width=True):
+                data = build_deck(st.session_state.current_student, selected)
+                st.download_button(
+                    f"⬇ Download SmartStudy_{st.session_state.current_student}.apkg "
+                    f"({len(selected)} cards)",
+                    data=data,
+                    file_name=f"SmartStudy_{st.session_state.current_student}.apkg",
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                )
+        except ImportError:
+            st.warning("Anki export requires `pip install genanki`.")
+
+        with st.expander("Preview question bank"):
+            st.dataframe(pd.DataFrame([{
+                "Topic": q["topic"], "Question": q["question"],
+                "Answer": q["correct_answer"],
+            } for q in bank]), use_container_width=True, hide_index=True)
+
+
+# --- PAGE: Concept Graph ---
 
 elif page == "🧠 Concept Graph":
     st.title("🧠 Concept Dependency Graph")
@@ -632,32 +821,71 @@ elif page == "🧠 Concept Graph":
     record = storage.load_student(st.session_state.current_student)
     mastered = set(record["topics_mastered"])
 
-    # visualization
+    # visualization — interactive (pyvis) with static matplotlib fallback
+    weak = set(record["weak_areas"])
+    interactive_ok = False
     try:
-        import networkx as nx
-        G = nx.DiGraph()
-        for prereq, topic in graph.to_edges():
-            G.add_edge(prereq, topic)
-        # add isolated nodes too
-        for t in graph.prereqs:
-            if t not in G:
-                G.add_node(t)
+        from pyvis.network import Network
 
-        fig, ax = plt.subplots(figsize=(14, 9))
-        pos = nx.spring_layout(G, k=2.5, seed=42, iterations=50)
-        node_colors = ["#16A34A" if n in mastered else "#94A3B8" for n in G.nodes()]
-        nx.draw(G, pos, with_labels=True, node_color=node_colors,
-                node_size=2200, font_size=7, font_weight="bold",
-                edge_color="#64748B", arrows=True, arrowsize=15, ax=ax)
-        ax.legend(handles=[
-            plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#16A34A", markersize=12, label="Mastered"),
-            plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#94A3B8", markersize=12, label="Not mastered"),
-        ], loc="upper left")
-        st.pyplot(fig)
+        net = Network(height="640px", width="100%", directed=True,
+                      bgcolor="#0B1020", font_color="#E2E8F0")
+        net.barnes_hut(gravity=-2500, central_gravity=0.25,
+                       spring_length=140, damping=0.85)
+
+        all_topics = set(graph.prereqs)
+        for p, t in graph.to_edges():
+            all_topics.add(p); all_topics.add(t)
+
+        for t in sorted(all_topics):
+            if t in mastered:
+                color, status = "#16A34A", "mastered"
+            elif t in weak:
+                color, status = "#F59E0B", "weak area"
+            else:
+                color, status = "#64748B", "not studied"
+            prereq_list = graph.get_prereqs(t)
+            title = (f"{t} — {status}"
+                     + (f"\nPrereqs: {', '.join(prereq_list)}" if prereq_list else ""))
+            net.add_node(t, label=t, color=color, title=title,
+                         shape="dot", size=18 if t in mastered else 14)
+
+        for p, t in graph.to_edges():
+            net.add_edge(p, t, color="#475569", arrows="to")
+
+        html_str = net.generate_html(notebook=False)
+        st.components.v1.html(html_str, height=660, scrolling=False)
+        st.caption("🟢 mastered · 🟡 weak area · ⚪ not studied — drag nodes, "
+                   "scroll to zoom, hover for prerequisites")
+        interactive_ok = True
     except ImportError:
-        st.warning("Install `networkx` for graph visualization.")
-        edges_df = pd.DataFrame(graph.to_edges(), columns=["Prerequisite", "Topic"])
-        st.dataframe(edges_df, use_container_width=True, hide_index=True)
+        pass
+
+    if not interactive_ok:
+        try:
+            import networkx as nx
+            G = nx.DiGraph()
+            for prereq, topic in graph.to_edges():
+                G.add_edge(prereq, topic)
+            # add isolated nodes too
+            for t in graph.prereqs:
+                if t not in G:
+                    G.add_node(t)
+
+            fig, ax = plt.subplots(figsize=(14, 9))
+            pos = nx.spring_layout(G, k=2.5, seed=42, iterations=50)
+            node_colors = ["#16A34A" if n in mastered else "#94A3B8" for n in G.nodes()]
+            nx.draw(G, pos, with_labels=True, node_color=node_colors,
+                    node_size=2200, font_size=7, font_weight="bold",
+                    edge_color="#64748B", arrows=True, arrowsize=15, ax=ax)
+            ax.legend(handles=[
+                plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#16A34A", markersize=12, label="Mastered"),
+                plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#94A3B8", markersize=12, label="Not mastered"),
+            ], loc="upper left")
+            st.pyplot(fig)
+        except ImportError:
+            st.warning("Install `pyvis` or `networkx` for graph visualization.")
+            edges_df = pd.DataFrame(graph.to_edges(), columns=["Prerequisite", "Topic"])
+            st.dataframe(edges_df, use_container_width=True, hide_index=True)
 
     # missing prereqs
     st.divider()
@@ -714,9 +942,7 @@ elif page == "🧠 Concept Graph":
             )
 
 
-# ============================================================
-# PAGE: Progress History
-# ============================================================
+# --- PAGE: Progress History ---
 
 elif page == "📊 Progress History":
     st.title("📊 Your Progress")
@@ -747,9 +973,7 @@ elif page == "📊 Progress History":
                      use_container_width=True, hide_index=True)
 
 
-# ============================================================
-# PAGE: Peer Comparison
-# ============================================================
+# --- PAGE: Peer Comparison ---
 
 elif page == "👥 Peer Comparison":
     st.title("👥 Peer Comparison Dashboard")
@@ -778,9 +1002,7 @@ elif page == "👥 Peer Comparison":
         st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-# ============================================================
-# PAGE: RL Policy
-# ============================================================
+# --- PAGE: RL Policy ---
 
 elif page == "🎯 RL Policy":
     st.title("🎯 Reinforcement Learning Policy")
@@ -813,9 +1035,7 @@ elif page == "🎯 RL Policy":
         st.success("Training complete! Refresh the page to see updated policy.")
 
 
-# ============================================================
-# PAGE: Baseline Evaluation
-# ============================================================
+# --- PAGE: Baseline Evaluation ---
 
 elif page == "🧪 Baseline Evaluation":
     st.title("🧪 Adaptive vs Baseline Evaluation")
@@ -852,9 +1072,7 @@ elif page == "🧪 Baseline Evaluation":
         st.pyplot(fig)
 
 
-# ============================================================
-# PAGE: Pilot Study
-# ============================================================
+# --- PAGE: Pilot Study ---
 
 elif page == "📋 Pilot Study":
     st.title("📋 Pilot Study Dashboard")
