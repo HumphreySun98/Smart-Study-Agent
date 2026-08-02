@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Hugging Face Space](https://img.shields.io/badge/🤗_Live_Demo-Hugging_Face-yellow.svg)](https://huggingface.co/spaces/HumphreySun98/smart-study-agent)
 
-**[English](#-live--two-ways-to-use-it)** · **[中文简介](#-中文简介)**
+**[English](#-live--two-ways-to-use-it)** · **[中文简介](#-中文简介)** · **[📚 Technical Deep Dive](docs/DEEP_DIVE.md)** — the POMDP framing, the math behind both policies, and the experiments (including the ones the heuristic won)
 
 ## 🌐 Live — Two Ways to Use It
 
@@ -363,6 +363,8 @@ smartstudy-agent/
 ├── skills/smartstudy/      # Claude Agent Skill — study coach for Claude Code
 ├── multi_format.py         # PDF/TXT/MD/DOCX/PPTX/VTT/SRT loader
 ├── evaluation.py           # Adaptive vs baseline simulation
+├── experiments/            # Reproducible studies (scheduler comparison, ...)
+├── docs/DEEP_DIVE.md       # POMDP framing, policy math, experiment analysis
 │
 ├── generate_visuals.py     # Generates architecture diagrams
 ├── requirements.txt        # Python dependencies
@@ -462,18 +464,26 @@ The Q-table is initialized with values informed by Bloom's 1968 mastery learning
 
 ### Empirical comparison
 
-Run `python evaluation.py`. Each policy is evaluated on 30 simulated students × 30 sessions, all facing the **same** student trajectories for a fair paired comparison:
+Run `python evaluation.py`. Each policy is evaluated on 30 simulated students, all facing the **same** student trajectories for a fair paired comparison:
 
-| Policy        | Avg. observed score | Final mean skill | vs. random |
+| Policy (30 sessions) | Avg. observed score | Final mean skill | vs. random |
 |---------------|---------------------|------------------|------------|
-| Random        | 0.33 ± 0.02         | 0.29 ± 0.01      | +0.0 %     |
-| Rule-based (Bloom 70 %) | **0.45 ± 0.02** | **0.53 ± 0.01** | **+35 %**  |
-| Contextual Bandit (LinUCB) | 0.43 ± 0.02 | 0.47 ± 0.02     | +28 %      |
-| Q-learning (tabular) | 0.40 ± 0.03     | 0.43 ± 0.06     | +18 %      |
+| Random        | 0.34 ± 0.02         | 0.29 ± 0.01      | +0.0 %     |
+| Rule-based (Bloom 70 %) | **0.46 ± 0.02** | **0.53 ± 0.02** | **+36.6 %**  |
+| Contextual Bandit (LinUCB) | 0.43 ± 0.02 | 0.47 ± 0.02     | +27.7 %      |
+| Q-learning (tabular) | 0.40 ± 0.04     | 0.43 ± 0.06     | +19.1 %      |
 
-*Numbers will vary run-to-run; representative of `n_runs=30`, `n_sessions=30`.*
+**Reading the result honestly.** The rule-based heuristic wins in this simulator — at 30 sessions *and* at 100 (we previously reported Q-learning catching up by ~100 sessions; a larger fresh run does not reproduce that, so we've corrected the claim). The Bandit is the best learned policy and essentially ties the rule on final skill by 100 sessions (0.51 vs 0.51); Q-learning trails with the highest variance — the bootstrap-variance tax is real at this sample size. **The honest claim is "learned policies are competitive and keep training on real quiz outcomes," not "RL beats everything."** Full analysis with both horizons in the [Technical Deep Dive](docs/DEEP_DIVE.md).
 
-**Reading the result honestly.** In the short-horizon regime typical of a single study session, a well-designed rule-based heuristic is hard to beat. The Bandit matches it with a small sample-efficiency penalty. Q-learning needs more data to pay off the variance cost of bootstrapping through next states; it catches up to the Bandit on *final skill* by ~100 sessions, consistent with the sequential-credit-assignment argument above. **This honestly answers the professor's question:** in this deployment, RL is defensible but not dominant; a Contextual Bandit is a reasonable production default and we ship it as a first-class option.
+### Does the review scheduler matter? (new experiment)
+
+We isolated the *scheduler* (same student, same actions, only the timing differs) across two regimes — a 6-topic course with uniform forgetting, and a 24-topic corpus with per-topic decay rates:
+
+<p align="center">
+  <img src="visuals/scheduler_comparison.png" alt="FSRS vs SM-2 vs rotation vs random scheduling across two regimes" width="820" />
+</p>
+
+**Finding:** with few topics and ample review capacity, *scheduling doesn't matter* — round-robin matches FSRS. With 24 topics and scarce capacity, due-date scheduling retains **4.5× more** than rotation (which collapses below random), and FSRS ≈ SM-2 within noise on this simulator. Spaced repetition is a **triage algorithm — it pays off exactly when material volume × decay variance exceeds review capacity.** Design, caveats and numbers: [docs/DEEP_DIVE.md §4](docs/DEEP_DIVE.md).
 
 ### Simulated Student Model
 
