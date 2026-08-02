@@ -1,6 +1,5 @@
 # storage.py
-# Persistent student storage using SQLite
-# Upgraded from JSON to handle >1k students efficiently
+# SQLite-backed student storage. Replaces the original JSON file.
 # Haofei Sun - CSE 5360
 
 import json
@@ -13,7 +12,7 @@ DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 DB_PATH = DATA_DIR / "smartstudy.db"
 
-# keep JSON path for backward compat / migration
+# old JSON path — kept only for one-time migration
 _JSON_PATH = DATA_DIR / "students.json"
 
 
@@ -46,6 +45,19 @@ def _init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_student
             ON sessions(student_name);
+        CREATE TABLE IF NOT EXISTS question_bank (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_name TEXT NOT NULL,
+            topic TEXT NOT NULL,
+            question TEXT NOT NULL,
+            choices TEXT NOT NULL,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT DEFAULT '',
+            timestamp TEXT NOT NULL,
+            UNIQUE(student_name, question)
+        );
+        CREATE INDEX IF NOT EXISTS idx_qbank_student
+            ON question_bank(student_name);
     """)
     conn.close()
 
@@ -54,7 +66,7 @@ _init_db()
 
 
 def _migrate_from_json():
-    """One-time migration: if old students.json exists, import it."""
+    """Import the old students.json once, then rename it so we don't redo it."""
     if not _JSON_PATH.exists():
         return
     try:
@@ -88,7 +100,6 @@ def _migrate_from_json():
             )
     conn.commit()
     conn.close()
-    # rename old file so we don't migrate again
     _JSON_PATH.rename(_JSON_PATH.with_suffix(".json.migrated"))
 
 
@@ -165,16 +176,60 @@ def add_session(name: str, session: dict):
     conn.close()
 
 
+def add_questions(name: str, questions: list[dict]):
+    """Save generated quiz questions to the student's question bank.
+    Each dict: {topic, question, choices (list), correct_answer, explanation}.
+    Duplicate question text for the same student is silently skipped."""
+    ts = datetime.now().isoformat()
+    conn = _get_conn()
+    for q in questions:
+        conn.execute(
+            "INSERT OR IGNORE INTO question_bank "
+            "(student_name, topic, question, choices, correct_answer, explanation, timestamp) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (name, q.get("topic", ""), q.get("question", ""),
+             json.dumps(q.get("choices", [])), q.get("correct_answer", ""),
+             q.get("explanation", ""), ts)
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_question_bank(name: str, topic: str = None) -> list[dict]:
+    conn = _get_conn()
+    if topic:
+        rows = conn.execute(
+            "SELECT * FROM question_bank WHERE student_name=? AND topic=? ORDER BY timestamp",
+            (name, topic)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM question_bank WHERE student_name=? ORDER BY topic, timestamp",
+            (name,)).fetchall()
+    conn.close()
+    return [
+        {
+            "topic": r["topic"],
+            "question": r["question"],
+            "choices": json.loads(r["choices"]),
+            "correct_answer": r["correct_answer"],
+            "explanation": r["explanation"],
+            "timestamp": r["timestamp"],
+        }
+        for r in rows
+    ]
+
+
 def delete_student(name: str):
     conn = _get_conn()
     conn.execute("DELETE FROM sessions WHERE student_name=?", (name,))
+    conn.execute("DELETE FROM question_bank WHERE student_name=?", (name,))
     conn.execute("DELETE FROM students WHERE name=?", (name,))
     conn.commit()
     conn.close()
 
 
 def get_all_stats() -> list[dict]:
-    """Get summary stats for all students (for pilot study / peer comparison)."""
+    """Per-student summary used by the pilot study / peer dashboard."""
     conn = _get_conn()
     rows = conn.execute("""
         SELECT s.name, s.topics_mastered, s.weak_areas, s.quiz_history,
