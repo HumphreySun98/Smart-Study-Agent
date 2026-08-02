@@ -68,3 +68,6 @@ TECHNICAL_DESIGN.pdf
 
 # Logs
 *.log
+
+# Course report — submitted to instructor, not for the public repo
+report/

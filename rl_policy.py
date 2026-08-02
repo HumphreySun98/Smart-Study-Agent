@@ -1,7 +1,5 @@
 # rl_policy.py
-# Q-learning based adaptive policy
-# Replaces the heuristic 70% threshold with a learned policy
-# State = mastery bucket, Action = advance/reinforce/review
+# Tabular Q-learning policy. State = score bucket, Action = review/reinforce/advance.
 # Haofei Sun - CSE 5360
 
 import json
@@ -13,7 +11,7 @@ DATA_DIR.mkdir(exist_ok=True)
 QTABLE_FILE = DATA_DIR / "qtable.json"
 
 
-# discretize the score into 5 buckets so the state space is small
+# 5 score buckets — keeps the state space small enough for tabular Q-learning
 def score_to_state(score: float) -> str:
     if score < 0.3:
         return "very_low"
@@ -30,17 +28,12 @@ ACTIONS = ["review", "reinforce", "advance"]
 
 
 class QLearningPolicy:
-    """
-    Tabular Q-learning agent.
-    State: discretized quiz score bucket
-    Action: review / reinforce / advance
-    Reward: +1 if next quiz score improves, -1 if it drops, 0 if same
-    """
+    """Tabular Q-learning over score buckets; reward is the score delta."""
 
     def __init__(self, alpha=0.2, gamma=0.8, epsilon=0.15):
-        self.alpha = alpha   # learning rate
-        self.gamma = gamma   # discount factor
-        self.epsilon = epsilon   # exploration rate
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
         self.q = self._load()
 
     def _load(self) -> dict:
@@ -50,7 +43,7 @@ class QLearningPolicy:
                     return json.load(f)
             except (json.JSONDecodeError, IOError):
                 pass
-        # initialize Q-table with small random values
+        # cold start: small random Q-values to break ties
         return {
             state: {a: random.uniform(0, 0.1) for a in ACTIONS}
             for state in ["very_low", "low", "medium", "high", "very_high"]
@@ -62,17 +55,15 @@ class QLearningPolicy:
 
     def choose_action(self, score: float) -> str:
         state = score_to_state(score)
-        # epsilon-greedy
         if random.random() < self.epsilon:
             return random.choice(ACTIONS)
         return max(self.q[state], key=self.q[state].get)
 
     def update(self, prev_score: float, action: str, new_score: float):
-        """Update Q-value based on score change."""
+        """Bellman update using the score delta as reward."""
         state = score_to_state(prev_score)
         next_state = score_to_state(new_score)
 
-        # reward is the score delta (scaled)
         reward = (new_score - prev_score) * 10
 
         old_q = self.q[state][action]
@@ -82,7 +73,7 @@ class QLearningPolicy:
         self.save()
 
     def policy_summary(self) -> dict:
-        """Return the best action for each state."""
+        """Greedy action per state."""
         return {
             state: max(actions, key=actions.get)
             for state, actions in self.q.items()

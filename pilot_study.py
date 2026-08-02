@@ -1,6 +1,5 @@
 # pilot_study.py
-# Framework for collecting and analyzing pilot study data
-# Tracks real student usage metrics for comparing agent vs traditional study
+# Aggregates DB rows into pilot-study metrics and a printable report.
 # Haofei Sun - CSE 5360
 
 import statistics
@@ -9,7 +8,7 @@ import storage
 
 
 def collect_metrics() -> dict:
-    """Gather all student data for pilot study analysis."""
+    """Per-class score / mastery / session totals."""
     stats = storage.get_all_stats()
     if not stats:
         return {"n_students": 0}
@@ -30,7 +29,7 @@ def collect_metrics() -> dict:
 
 
 def engagement_analysis() -> dict:
-    """Measure user engagement: session frequency, completion rates, etc."""
+    """Active vs one-time vs inactive student counts and retention rate."""
     stats = storage.get_all_stats()
     if not stats:
         return {}
@@ -49,10 +48,7 @@ def engagement_analysis() -> dict:
 
 
 def mastery_progression() -> list[dict]:
-    """
-    Track how students progress over time.
-    Returns a list of per-student progression summaries.
-    """
+    """First-half vs second-half quiz averages, per student."""
     results = []
     for name in storage.list_students():
         record = storage.load_student(name)
@@ -77,7 +73,7 @@ def mastery_progression() -> list[dict]:
 
 
 def generate_report() -> str:
-    """Generate a text summary for the pilot study report."""
+    """Plain-text pilot study report."""
     metrics = collect_metrics()
     engagement = engagement_analysis()
     progression = mastery_progression()

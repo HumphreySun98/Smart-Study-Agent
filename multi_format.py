@@ -1,6 +1,5 @@
 # multi_format.py
-# Loads lecture content from different file formats
-# Supports: PDF, TXT, MD, video transcript (VTT/SRT), DOCX, PPTX
+# Loaders for PDF / TXT / MD / VTT / SRT / DOCX / PPTX lecture content.
 # Haofei Sun - CSE 5360
 
 import re
@@ -22,12 +21,11 @@ def load_pdf(path: str) -> str:
 
 
 def load_vtt(path: str) -> str:
-    """WebVTT subtitle file - strip timing lines."""
+    """WebVTT — drop timing lines and indices, keep speech."""
     raw = load_text(path)
     lines = []
     for line in raw.splitlines():
         line = line.strip()
-        # skip timing lines like "00:00:01.000 --> 00:00:05.000"
         if "-->" in line:
             continue
         if line.upper().startswith("WEBVTT"):
@@ -40,7 +38,7 @@ def load_vtt(path: str) -> str:
 
 
 def load_srt(path: str) -> str:
-    """SRT subtitle file - strip timing and indices."""
+    """SRT — same as VTT but with index lines."""
     raw = load_text(path)
     lines = []
     for line in raw.splitlines():
@@ -78,7 +76,7 @@ def load_pptx(path: str) -> str:
 
 
 def load_any(path: str) -> str:
-    """Auto-detect format based on extension and load."""
+    """Pick a loader by extension; fall back to plain text."""
     ext = Path(path).suffix.lower()
     if ext == ".pdf":
         return load_pdf(path)
@@ -92,5 +90,4 @@ def load_any(path: str) -> str:
         return load_docx(path)
     if ext == ".pptx":
         return load_pptx(path)
-    # default - try as text
     return load_text(path)

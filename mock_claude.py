@@ -1,6 +1,5 @@
 # mock_claude.py
-# Fake Claude client so we can demo without an API key
-# Returns hardcoded responses that match what the real API would give
+# Offline stand-in for the Anthropic client — returns canned phase responses.
 # Haofei Sun - CSE 5360
 
 import json
@@ -8,7 +7,7 @@ import time
 import random
 
 
-# --- canned responses for each phase ---
+# --- canned phase responses ---
 
 _OBSERVE_RESPONSE = {
     "topics": [
@@ -56,7 +55,7 @@ _PLAN_RESPONSE = {
     ),
 }
 
-# question bank - 3 questions per topic
+# 3 MCQs per topic
 _QUIZ_BANK = {
     "Neural Networks": [
         {
@@ -154,7 +153,7 @@ _ADAPT_RESPONSES = {
 }
 
 
-# --- fake message objects to match anthropic SDK format ---
+# --- fake message shape to match the anthropic SDK ---
 
 class _TextBlock:
     def __init__(self, text: str):
@@ -167,22 +166,17 @@ class _MockMessage:
         self.content = [_TextBlock(text)]
 
 
-# --- the mock client itself ---
+# --- mock client ---
 
 class MockAnthropic:
-    """
-    Drop-in replacement for anthropic.Anthropic().
-    Looks at the prompt to figure out which phase we're in,
-    then returns the matching canned response.
-    """
+    """Drop-in for anthropic.Anthropic — picks a canned reply based on prompt keywords."""
 
     class _Messages:
         def create(self, model, max_tokens, messages, system="", thinking=None, **kwargs):
-            time.sleep(0.6)   # fake some delay so the UI spinners look real
+            time.sleep(0.6)   # tiny delay so the UI spinners don't flash
 
             prompt = messages[-1]["content"] if messages else ""
 
-            # figure out which phase based on prompt keywords
             if "key topics" in prompt or "Analyze the following" in prompt:
                 return _MockMessage(json.dumps(_OBSERVE_RESPONSE))
 
@@ -211,7 +205,7 @@ class MockAnthropic:
         self.messages = self._Messages()
 
 
-# --- helper functions ---
+# --- prompt parsing helpers ---
 
 def _extract_topic(prompt: str) -> str:
     for topic in _QUIZ_BANK:

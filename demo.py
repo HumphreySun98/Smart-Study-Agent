@@ -1,8 +1,6 @@
 # demo.py
-# Interactive demo for SmartStudy Agent
-# Run: python demo.py --mock       (offline mode)
-#      python demo.py               (real Claude API)
-#      python demo.py --pdf lec.pdf (use your own lecture)
+# CLI demo for the SmartStudy Agent — runs all 5 phases on a lecture.
+# Usage:  python demo.py [--mock] [--pdf path]
 # Haofei Sun - CSE 5360
 
 import argparse
@@ -19,7 +17,7 @@ from smartstudy_agent import SmartStudyAgent, StudyPlan, QuizQuestion
 
 console = Console()
 
-# sample ML lecture content used when no PDF is provided
+# fallback content if no PDF is given
 SAMPLE_CONTENT = """
 Introduction to Machine Learning
 
@@ -57,7 +55,7 @@ mean absolute error (MAE). Confusion matrices visualize classification results.
 
 
 def load_pdf(path: str) -> str:
-    """Try to read a PDF, fall back to sample content if pypdf isn't installed."""
+    """Read a PDF; fall back to SAMPLE_CONTENT if pypdf is missing."""
     try:
         from pypdf import PdfReader
         reader = PdfReader(path)
@@ -104,7 +102,7 @@ def display_plan(plan: StudyPlan):
 
 
 def run_quiz(questions: list[QuizQuestion]) -> list[str]:
-    """Show questions one by one and collect student answers."""
+    """Prompt the user for A/B/C/D answers, one question at a time."""
     answers = []
     console.print(Panel(
         f"[bold]Quiz — {questions[0].topic}[/bold]\n"
@@ -181,7 +179,6 @@ def main():
         border_style="blue"
     ))
 
-    # load lecture content
     if args.pdf and Path(args.pdf).exists():
         console.print(f"[dim]Loading PDF: {args.pdf}[/dim]")
         content = load_pdf(args.pdf)
@@ -205,7 +202,6 @@ def main():
         plan = agent.plan(observed)
     display_plan(plan)
 
-    # pick which topic to quiz on
     if args.topic_index < len(plan.sequence):
         topic = plan.sequence[args.topic_index]
     else:

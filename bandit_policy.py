@@ -1,16 +1,5 @@
 # bandit_policy.py
-# Contextual Bandit policy (LinUCB) — alternative to Q-learning.
-# Added in response to feedback: "If state transitions are not significant,
-# Contextual Bandits are more sample-efficient than full RL."
-#
-# Key difference from rl_policy.QLearningPolicy:
-#   - Bandit: treats each quiz as an independent decision given the context.
-#             No discount factor, no next-state bootstrap. More sample-efficient.
-#   - Q-learning: models the sequence — action now affects future mastery state.
-#
-# We keep BOTH so the evaluation script can compare them fairly on the same
-# simulated students, and so the project explicitly demonstrates the trade-off.
-#
+# LinUCB contextual bandit, used as an alternative to the Q-learning policy.
 # Haofei Sun - CSE 5360
 
 import json
@@ -28,11 +17,7 @@ ACTIONS = ["review", "reinforce", "advance"]
 
 
 def _context_vector(score: float, attempts_on_topic: int, topic_idx: int, n_topics: int) -> np.ndarray:
-    """
-    Build a feature vector describing the current decision context.
-    Bandits condition on context but don't model transitions between contexts.
-    """
-    # bucketed score (one-hot, 5 buckets)
+    """Feature vector for the current (score, topic, attempts) context."""
     buckets = np.zeros(5)
     if score < 0.3:
         buckets[0] = 1
@@ -45,40 +30,30 @@ def _context_vector(score: float, attempts_on_topic: int, topic_idx: int, n_topi
     else:
         buckets[4] = 1
 
-    # topic one-hot (bounded, pad/truncate to 8)
     topic_oh = np.zeros(8)
     if 0 <= topic_idx < 8:
         topic_oh[topic_idx] = 1
 
-    # continuous features
     extras = np.array([
         score,
-        math.log1p(max(0, attempts_on_topic)) / 3.0,  # saturates around 20 attempts
-        1.0,  # bias
+        math.log1p(max(0, attempts_on_topic)) / 3.0,
+        1.0,
     ])
 
     return np.concatenate([buckets, topic_oh, extras])
 
 
-FEATURE_DIM = 5 + 8 + 3  # = 16
+FEATURE_DIM = 5 + 8 + 3   # 16
 
 
 class LinUCBBandit:
-    """
-    LinUCB contextual bandit with one linear model per action.
-    Reward model:  r | x, a  ~  N(theta_a^T x, sigma^2)
-    Action rule:   a = argmax_a ( theta_a^T x  +  alpha * sqrt(x^T A_a^{-1} x) )
-
-    The exploration bonus shrinks as each action accumulates data, so
-    the policy converges to pure exploitation — unlike epsilon-greedy,
-    which keeps exploring forever at rate epsilon.
-    """
+    """LinUCB with one linear model per action; UCB-style exploration."""
 
     def __init__(self, alpha: float = 0.8, d: int = FEATURE_DIM):
         self.alpha = alpha
         self.d = d
-        self.A = {a: np.eye(d) for a in ACTIONS}       # d x d per action
-        self.b = {a: np.zeros(d) for a in ACTIONS}     # d per action
+        self.A = {a: np.eye(d) for a in ACTIONS}
+        self.b = {a: np.zeros(d) for a in ACTIONS}
         self.n_pulls = {a: 0 for a in ACTIONS}
         self._load()
 
@@ -148,11 +123,7 @@ class LinUCBBandit:
 
 
 class EpsilonGreedyBandit:
-    """
-    Simpler baseline bandit — constant-epsilon exploration over a
-    coarse state discretization. Useful to show that LinUCB's context
-    features actually buy something over a tabular bandit.
-    """
+    """Tabular epsilon-greedy baseline; used as a contrast to LinUCB."""
 
     def __init__(self, epsilon: float = 0.15):
         self.epsilon = epsilon

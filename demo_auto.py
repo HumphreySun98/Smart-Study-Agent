@@ -1,6 +1,5 @@
 # demo_auto.py
-# Auto-run version of the demo (no user input needed)
-# Good for recording videos or live presentation
+# Hands-free version of demo.py — fixed answers, paced for screen recording.
 # Haofei Sun - CSE 5360
 
 import os
@@ -40,10 +39,10 @@ have multiple hidden layers and can learn complex representations.
 Backpropagation is the algorithm used to train neural networks by minimizing loss.
 """
 
-# pre-set answers: gets 2/3 right (67%) which triggers REINFORCE
+# 2/3 correct → score 67% → triggers REINFORCE in the demo
 AUTO_ANSWERS = ["B", "B", "C"]
 
-PAUSE = 1.2   # delay between phases for readability
+PAUSE = 1.2
 
 
 def phase_banner(name: str, description: str, color: str = "cyan"):
@@ -56,7 +55,7 @@ def phase_banner(name: str, description: str, color: str = "cyan"):
 
 
 def fake_thinking(message: str, duration: float = 1.8):
-    """Show a spinner while we wait (looks nice in the demo)."""
+    """Spinner-with-delay used during demo recordings."""
     with console.status(f"[cyan]{message}[/cyan]", spinner="dots"):
         time.sleep(duration)
 

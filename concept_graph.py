@@ -1,7 +1,5 @@
 # concept_graph.py
-# Concept dependency graph - tracks which topics need other topics first
-# Supports multiple courses with cross-course prerequisite linking
-# Used by the planner to put prerequisites before advanced topics
+# Prerequisite DAG over topics. Used by the planner for topological ordering.
 # Haofei Sun - CSE 5360
 
 import json
@@ -12,8 +10,7 @@ DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 GRAPH_FILE = DATA_DIR / "concept_graph.json"
 
-# default ML/AI prerequisite map
-# format: {topic: [list of prerequisites]}
+# default ML/AI prereqs — {topic: [prereqs]}
 DEFAULT_PREREQS = {
     "Linear Algebra": [],
     "Probability": [],
@@ -34,7 +31,7 @@ DEFAULT_PREREQS = {
     "Evaluation Metrics": ["Classification and Regression"],
 }
 
-# cross-course prerequisite maps (course_name -> prereqs dict)
+# per-course prereq maps; merged in on demand
 COURSE_PREREQS = {
     "AI Foundations (CSE 5360)": DEFAULT_PREREQS,
     "Data Science": {
@@ -66,21 +63,17 @@ COURSE_PREREQS = {
 
 
 class ConceptGraph:
-    """DAG for topic prerequisites with cross-course linking and persistence."""
+    """Prerequisite DAG with optional cross-course merge and persistence."""
 
     def __init__(self, prereqs: dict = None, courses: list[str] = None):
-        # start from defaults
         self.prereqs = dict(prereqs or DEFAULT_PREREQS)
-        # optionally merge in cross-course prerequisites
         if courses:
             for course in courses:
                 if course in COURSE_PREREQS:
                     self.prereqs.update(COURSE_PREREQS[course])
-        # load any user-added edges from disk
         self._load_custom()
 
     def _load_custom(self):
-        """Load user-defined edges from disk."""
         if GRAPH_FILE.exists():
             try:
                 with open(GRAPH_FILE) as f:
@@ -102,7 +95,6 @@ class ConceptGraph:
     def add_topic(self, topic: str, prereqs: list[str] = None):
         if topic not in self.prereqs:
             self.prereqs[topic] = list(prereqs or [])
-        # persist the addition
         custom = {}
         if GRAPH_FILE.exists():
             try:
@@ -114,18 +106,15 @@ class ConceptGraph:
         self._save_custom(custom)
 
     def add_edge(self, prereq: str, topic: str):
-        """Add a single prerequisite edge and save."""
         if topic not in self.prereqs:
             self.prereqs[topic] = []
         if prereq not in self.prereqs[topic]:
             self.prereqs[topic].append(prereq)
-        # also make sure prereq node exists
         if prereq not in self.prereqs:
             self.prereqs[prereq] = []
         self.add_topic(topic, self.prereqs[topic])
 
     def remove_edge(self, prereq: str, topic: str):
-        """Remove a prerequisite edge."""
         if topic in self.prereqs and prereq in self.prereqs[topic]:
             self.prereqs[topic].remove(prereq)
 
@@ -137,11 +126,7 @@ class ConceptGraph:
         return self.prereqs.get(topic, [])
 
     def topological_sort(self, topics: list[str]) -> list[str]:
-        """
-        Sort topics so prereqs come first (Kahn's algorithm).
-        Topics not in graph keep their original order at the end.
-        """
-        # only consider edges among the given topics
+        """Kahn's algorithm; topics not in graph keep their original order at the end."""
         topic_set = set(topics)
         in_degree = {t: 0 for t in topics}
         edges = defaultdict(list)
@@ -162,18 +147,16 @@ class ConceptGraph:
                 if in_degree[nxt] == 0:
                     queue.append(nxt)
 
-        # add any remaining (in case of cycles, shouldn't happen normally)
+        # cycles shouldn't happen, but append leftovers just in case
         for t in topics:
             if t not in order:
                 order.append(t)
         return order
 
     def missing_prereqs(self, topic: str, mastered: list[str]) -> list[str]:
-        """Return prereqs that the student hasn't mastered yet."""
         return [p for p in self.get_prereqs(topic) if p not in mastered]
 
     def to_edges(self) -> list[tuple]:
-        """Return (prereq, topic) edges for visualization."""
         edges = []
         for topic, ps in self.prereqs.items():
             for p in ps:

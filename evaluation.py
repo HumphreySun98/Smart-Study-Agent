@@ -1,20 +1,5 @@
 # evaluation.py
-# Quantitative evaluation of adaptive policies against realistic baselines.
-#
-# Implements the professor's feedback:
-#   "Look into Simulated Student Models or compare against a Rule-based
-#    baseline rather than just a random one."
-#
-# Four policies are compared on the same simulated students:
-#   1. Random        — pick any topic, always "advance". Sanity-check floor.
-#   2. Rule-based    — Bloom's 70% mastery threshold (classic ITS heuristic).
-#   3. Bandit        — Contextual Bandit (LinUCB). No sequence modeling.
-#   4. RL            — Tabular Q-learning. Models state transitions.
-#
-# The simulated student is a small cognitive model (skill per topic,
-# forgetting, noise, prerequisite coupling) — richer than the previous
-# random-score generator so differences between policies are not washed out.
-#
+# Compare random / rule-based / bandit / Q-learning on a simulated student.
 # Haofei Sun - CSE 5360
 
 from __future__ import annotations
@@ -23,15 +8,12 @@ import random
 import statistics
 from dataclasses import dataclass, field
 
-# Lazy imports so `evaluation.py` can be imported even if numpy isn't
-# installed yet (the RL/bandit paths require it, but `run_random` doesn't).
+# numpy is only needed by the RL/bandit runners — imported lazily inside.
 
 TOPICS = ["Supervised", "Unsupervised", "Neural Nets",
           "Overfitting", "Backprop", "Evaluation"]
 
-# A tiny prerequisite graph. Studying a topic whose prereq is weak gives
-# a smaller skill gain, which creates the "sequence matters" signal that
-# a full RL formulation can exploit and a plain bandit cannot.
+# Tiny prereq graph — gives the "sequence matters" signal RL can exploit.
 PREREQS = {
     "Neural Nets": ["Supervised"],
     "Backprop":    ["Neural Nets"],
@@ -46,14 +28,7 @@ ACTIONS = ["review", "reinforce", "advance"]
 
 @dataclass
 class SimulatedStudent:
-    """
-    Per-topic hidden skill in [0, 1], plus a forgetting dynamic and a
-    prerequisite-coupled learning rate. Each step:
-      - observed quiz score = noisy sigmoid of (skill - difficulty)
-      - on the practiced topic, skill increases by an action-dependent
-        amount, scaled by how well prereqs are mastered
-      - all other topics decay slightly (forgetting curve)
-    """
+    """Hidden per-topic skill with forgetting and prereq-coupled learning."""
     skills: dict[str, float] = field(default_factory=dict)
     initial: float = 0.35
     base_lr: float = 0.12
@@ -67,26 +42,20 @@ class SimulatedStudent:
         pr = PREREQS.get(topic, [])
         if not pr:
             return 1.0
-        # weakest prereq gates learning — models "you can't do backprop
-        # effectively until neural nets are solid"
+        # weakest prereq gates the learning rate
         return min(self._skill(p) for p in pr) ** 0.5
 
     def study(self, topic: str, action: str) -> float:
-        """Simulate one quiz + study step. Returns the observed score."""
+        """One quiz + study step. Returns the observed score."""
         skill = self._skill(topic)
 
-        # observed score: sigmoid-ish, plus gaussian noise, clipped
-        observed = skill + random.gauss(0, self.noise)
-        observed = max(0.0, min(1.0, observed))
+        observed = max(0.0, min(1.0, skill + random.gauss(0, self.noise)))
 
-        # learning gain depends on action + prereqs + current skill
         action_mult = {"review": 1.6, "reinforce": 1.2, "advance": 0.5}[action]
-        # diminishing returns as skill approaches 1
         room_to_grow = 1.0 - skill
         gain = self.base_lr * action_mult * self._prereq_factor(topic) * room_to_grow
         self.skills[topic] = min(1.0, skill + gain)
 
-        # everything else forgets a bit
         for t in list(self.skills.keys()):
             if t != topic:
                 self.skills[t] = max(0.0, self.skills[t] - self.forget_rate)
@@ -148,7 +117,7 @@ def run_rule_based(topics: list[str], n_sessions: int = 30, seed: int | None = N
 
 def run_bandit(topics: list[str], n_sessions: int = 30, seed: int | None = None,
                reset: bool = True) -> dict:
-    """Contextual Bandit (LinUCB). No cross-step credit assignment."""
+    """LinUCB contextual bandit — no cross-step credit assignment."""
     from bandit_policy import LinUCBBandit, BANDIT_FILE
     if reset and BANDIT_FILE.exists():
         BANDIT_FILE.unlink()
@@ -165,7 +134,6 @@ def run_bandit(topics: list[str], n_sessions: int = 30, seed: int | None = None,
         attempts_on_topic = attempts.get(topic, 0)
         action = bandit.choose_action(prev, attempts_on_topic, t_idx, len(topics))
         s = student.study(topic, action)
-        # bandit reward = immediate score improvement
         reward = (s - prev) * 10.0
         bandit.update(prev, action, reward, attempts_on_topic, t_idx, len(topics))
         history[topic] = s
@@ -179,7 +147,7 @@ def run_bandit(topics: list[str], n_sessions: int = 30, seed: int | None = None,
 
 def run_rl(topics: list[str], n_sessions: int = 30, seed: int | None = None,
            reset: bool = True) -> dict:
-    """Tabular Q-learning. Bootstraps off next-state value — models sequence."""
+    """Tabular Q-learning — bootstraps off next-state value."""
     from rl_policy import QLearningPolicy, QTABLE_FILE
     if reset and QTABLE_FILE.exists():
         QTABLE_FILE.unlink()
@@ -205,10 +173,7 @@ def run_rl(topics: list[str], n_sessions: int = 30, seed: int | None = None,
 # ---------- Comparison driver ----------
 
 def compare(n_runs: int = 30, n_sessions: int = 30, topics: list[str] | None = None) -> dict:
-    """
-    Run every policy n_runs times on fresh simulated students and report
-    mean / std of the average observed quiz score AND final mean skill.
-    """
+    """Run all policies on fresh simulated students; return mean/std stats."""
     topics = topics or TOPICS
 
     runners = {
@@ -222,7 +187,7 @@ def compare(n_runs: int = 30, n_sessions: int = 30, topics: list[str] | None = N
         avg_scores = []
         final_skills = []
         for i in range(n_runs):
-            # same seed across runners so they face the SAME student trajectory
+            # paired seeds: every policy faces the same student trajectory
             res = fn(topics, n_sessions=n_sessions, seed=1000 + i)
             avg_scores.append(res["avg_score"])
             final_skills.append(res["final_mean_skill"])
