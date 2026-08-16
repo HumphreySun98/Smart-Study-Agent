@@ -118,6 +118,20 @@ def fsrs_schedule(quiz_history: list[dict]) -> list[dict]:
 
 # ---- legacy SM-2 queue (fallback path) ----
 
+def _sm2_state(attempts: list[dict]) -> tuple:
+    """Replay a topic's attempts through SM-2 → (interval_days, easiness).
+
+    SM-2 is only stateless if every attempt is fed back in; scoring the last
+    one from the defaults throws away the accumulated interval, which pins the
+    result at 1 or 6 days no matter how long the streak is.
+    """
+    interval, easiness = 1, 2.5
+    for entry in attempts:
+        interval, easiness = calculate_next_review(
+            entry.get("score", 0.0), interval, easiness)
+    return interval, easiness
+
+
 def _sm2_review_queue(quiz_history: list[dict]) -> list[dict]:
     by_topic = _attempts_by_topic(quiz_history)
     queue = []
@@ -129,7 +143,7 @@ def _sm2_review_queue(quiz_history: list[dict]) -> list[dict]:
         if last_seen is None:
             continue
 
-        interval, _ = calculate_next_review(score)
+        interval, _ = _sm2_state(attempts)
         due_date = last_seen + timedelta(days=interval)
         days_until_due = (due_date - now).days
 
